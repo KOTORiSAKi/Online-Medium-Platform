@@ -19,14 +19,19 @@ function Profile() {
     newPhone: "",
   });
 
-  // สเตทสำหรับโมดอล/การสลับบทบาท Customer <-> Seller
+  // สเตทสำหรับสลับบทบาท Customer <-> Seller
   const [switchRoleOpen, setSwitchRoleOpen] = useState(false);
   const [switchPassword, setSwitchPassword] = useState("");
 
-  // สเตทสำหรับสร้างร้านค้าใหม่ (Seller Area)
+  // สเตทสำหรับร้านค้า
   const [storeForm, setStoreForm] = useState({ stName: "", location: "" });
   const [stores, setStores] = useState([]);
   const [storeLoading, setStoreLoading] = useState(false);
+  const [searchQuery, setSearchQuery] = useState(""); // สำหรับ Admin / Employee ค้นหาร้าน
+
+  // สเตทสำหรับแก้ไขชื่อร้านและที่อยู่ร้าน
+  const [editStoreModalOpen, setEditStoreModalOpen] = useState(false);
+  const [storeEditForm, setStoreEditForm] = useState({ stId: null, stName: "", location: "" });
 
   // ฟังก์ชันดึงข้อมูลบัญชีล่าสุดจาก DB
   const fetchAccount = useCallback(async (acId) => {
@@ -44,7 +49,7 @@ function Profile() {
     }
   }, []);
 
-  // ฟังก์ชันดึงร้านค้าทั้งหมด
+  // ฟังก์ชันดึงข้อมูลร้านค้าทั้งหมด
   const fetchStores = useCallback(async () => {
     setStoreLoading(true);
     try {
@@ -70,7 +75,7 @@ function Profile() {
     fetchStores();
   }, [navigate, fetchAccount, fetchStores]);
 
-  // เมื่อเปิดโหมดแก้ไข ให้โหลดข้อมูลปัจจุบันใส่ฟอร์ม
+  // ตั้งค่าฟอร์มแก้ไขเมื่อเปิดโหมดแก้ไข
   useEffect(() => {
     if (user) {
       setEditForm({
@@ -151,6 +156,7 @@ function Profile() {
         setSwitchPassword("");
         setSwitchRoleOpen(false);
         fetchAccount(user.AC_ID);
+        fetchStores();
       } else {
         alert(data.error || "สลับบทบาทไม่สำเร็จ");
       }
@@ -192,7 +198,70 @@ function Profile() {
     }
   };
 
-  // 4. ลบบัญชีผู้ใช้
+  // 4. สลับสถานะเปิด-ปิดร้านค้า (IS_OPEN = 'Y' หรือ 'N')
+  const handleToggleStoreStatus = async (stId, currentStatus) => {
+    const nextStatus = currentStatus === "Y" ? "N" : "Y";
+    const actionText = nextStatus === "Y" ? "เปิดร้านให้บริการ" : "ปิดร้านชั่วคราว";
+
+    if (!window.confirm(`ต้องการ "${actionText}" ใช่หรือไม่?`)) return;
+
+    try {
+      const res = await fetch(`http://localhost:5000/api/stores/${stId}/status`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ isOpen: nextStatus }),
+      });
+      const data = await res.json();
+      if (res.ok) {
+        alert(data.message);
+        fetchStores();
+      } else {
+        alert(data.error || "เปลี่ยนสถานะไม่สำเร็จ");
+      }
+    } catch (err) {
+      alert("เชื่อมต่อเซิร์ฟเวอร์ไม่ได้");
+    }
+  };
+
+  // 4.1 ฟังก์ชันเปิด Modal แก้ไขชื่อและที่อยู่ร้าน
+  const handleOpenEditStore = (s) => {
+    setStoreEditForm({ stId: s.ST_ID, stName: s.ST_NAME, location: s.LOCATION });
+    setEditStoreModalOpen(true);
+  };
+
+  // 4.2 บันทึกการแก้ไขชื่อและที่อยู่ร้านค้า
+  const handleSaveStore = async (e) => {
+    e.preventDefault();
+    if (!storeEditForm.stName.trim() || !storeEditForm.location.trim()) {
+      alert("กรุณากรอกชื่อร้านค้าและสถานที่ตั้งให้ครบถ้วน");
+      return;
+    }
+
+    try {
+      const res = await fetch(`http://localhost:5000/api/stores/${storeEditForm.stId}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          stName: storeEditForm.stName,
+          location: storeEditForm.location,
+          acId: user.AC_ID,
+        }),
+      });
+
+      const data = await res.json();
+      if (res.ok) {
+        alert(data.message);
+        setEditStoreModalOpen(false);
+        fetchStores();
+      } else {
+        alert(data.error || "แก้ไขข้อมูลร้านไม่สำเร็จ");
+      }
+    } catch (err) {
+      alert("เชื่อมต่อเซิร์ฟเวอร์ไม่ได้");
+    }
+  };
+
+  // 5. ลบบัญชีผู้ใช้
   const handleDeleteAccount = async () => {
     if (!window.confirm("🚨 คำเตือน: คุณต้องการ 'ลบบัญชีนี้ถาวร' จริงๆ หรือไม่? ข้อมูลทั้งหมดจะถูกลบและไม่สามารถกู้คืนได้!")) {
       return;
@@ -218,6 +287,28 @@ function Profile() {
 
   const isCustomerOrSeller = user.TYPE === "Customer" || user.TYPE === "Seller";
   const targetRole = user.TYPE === "Customer" ? "Seller" : "Customer";
+  const isAdminOrEmployee = user.TYPE === "Admin" || user.TYPE === "Employee";
+
+  // ร้านค้าที่เป็นของ User ปัจจุบัน (ดูจาก STORE.AC_ID)
+  const myStores = stores.filter((s) => s.AC_ID === user.AC_ID);
+
+  // กรองร้านค้าตามสิทธิ์การเข้าถึง
+  let displayedStores = [];
+  if (isAdminOrEmployee) {
+    // Admin, Employee ค้นหาและดูได้ทุกร้าน
+    displayedStores = stores.filter(
+      (s) =>
+        s.ST_NAME?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        s.LOCATION?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        String(s.ST_ID).includes(searchQuery)
+    );
+  } else if (user.TYPE === "Seller") {
+    // Seller ให้เห็นเฉพาะทุกร้านของตัวเอง (1 Account มีได้หลายร้าน)
+    displayedStores = myStores;
+  } else if (user.TYPE === "Customer" && myStores.length > 0) {
+    // Customer ถ้าเคยมีร้านของตัวเองในระบบ ให้เห็นร้านของตัวเอง
+    displayedStores = myStores;
+  }
 
   return (
     <div style={{ padding: "2rem", maxWidth: "900px", margin: "0 auto", color: "#1e293b" }}>
@@ -336,14 +427,14 @@ function Profile() {
             <strong>{user.REGISTED_DATE || "-"}</strong>
           </div>
           <div>
-            <span style={{ color: "#64748b", display: "block", fontSize: "0.85rem" }}>🏪 รหัสร้านค้าที่ผูก (ST_ID)</span>
-            <strong>{user.ST_ID ? `#${user.ST_ID}` : "ยังไม่ได้ผูกร้าน"}</strong>
+            <span style={{ color: "#64748b", display: "block", fontSize: "0.85rem" }}>🏪 ร้านค้าในครอบครอง</span>
+            <strong>{myStores.length > 0 ? `${myStores.length} ร้านค้า` : "ยังไม่มีร้านค้า"}</strong>
           </div>
         </div>
       </div>
 
       {/* ==================================================== */}
-      {/* 2. ฟอร์มแก้ไขข้อมูลบัญชี (ตรวจรหัสผ่านเก่า + Relogin หากเปลี่ยน Email/Pass) */}
+      {/* 2. ฟอร์มแก้ไขข้อมูลบัญชี */}
       {/* ==================================================== */}
       {editMode && (
         <div style={{
@@ -359,7 +450,6 @@ function Profile() {
           </p>
 
           <form onSubmit={handleUpdateAccount} style={{ display: "flex", flexDirection: "column", gap: "1rem", marginTop: "1rem" }}>
-            {/* กล่องกรอกรหัสผ่านปัจจุบัน (บังคับ) */}
             <div style={{ backgroundColor: "#fee2e2", padding: "1rem", borderRadius: "8px", border: "1px solid #f87171" }}>
               <label style={{ display: "block", fontWeight: "bold", color: "#991b1b", fontSize: "0.9rem" }}>
                 🔒 รหัสผ่านปัจจุบัน (Current Password) *จำเป็น:
@@ -481,7 +571,7 @@ function Profile() {
       )}
 
       {/* ==================================================== */}
-      {/* 3. Popup / ฟอร์มสลับบทบาท Customer <-> Seller (ต้องกรอกรหัสผ่าน) */}
+      {/* 3. Modal สลับบทบาท Customer <-> Seller */}
       {/* ==================================================== */}
       {switchRoleOpen && (
         <div style={{
@@ -501,12 +591,18 @@ function Profile() {
             padding: "2rem",
             borderRadius: "16px",
             width: "90%",
-            maxWidth: "420px",
+            maxWidth: "440px",
             boxShadow: "0 20px 25px -5px rgba(0, 0, 0, 0.2)"
           }}>
             <h3 style={{ margin: 0, fontSize: "1.25rem" }}>🔄 สลับบทบาทเป็น "{targetRole}"</h3>
-            <p style={{ color: "#64748b", fontSize: "0.9rem", margin: "0.5rem 0 1.25rem 0" }}>
-              การสลับบทบาทจำเป็นต้องยืนยันรหัสผ่านเพื่อความปลอดภัยของบัญชี
+            <p style={{ color: "#64748b", fontSize: "0.85rem", margin: "0.5rem 0 1.25rem 0" }}>
+              {user.TYPE === "Seller" ? (
+                <span style={{ color: "#dc2626" }}>
+                  ⚠️ ข้อควรทราบ: เมื่อสลับเป็น Customer ร้านค้าที่คุณดูแลจะถูก <strong>ปิดให้บริการ (IS_OPEN = 'N')</strong> อัตโนมัติทันที
+                </span>
+              ) : (
+                <span>การสลับบทบาทจำเป็นต้องยืนยันรหัสผ่านเพื่อความปลอดภัย</span>
+              )}
             </p>
 
             <form onSubmit={handleSwitchRole}>
@@ -544,9 +640,9 @@ function Profile() {
       )}
 
       {/* ==================================================== */}
-      {/* 4. พื้นที่ของ SELLER: สร้างร้านค้าได้กี่ร้านก็ได้ */}
+      {/* 4. พื้นที่จัดการร้านค้า (เงื่อนไขสิทธิ์ตาม Role) */}
       {/* ==================================================== */}
-      {user.TYPE === "Seller" && (
+      {(user.TYPE === "Seller" || isAdminOrEmployee || (user.TYPE === "Customer" && myStores.length > 0)) && (
         <section style={{
           backgroundColor: "#ffffff",
           borderRadius: "16px",
@@ -555,109 +651,235 @@ function Profile() {
           marginBottom: "2rem",
           boxShadow: "0 4px 6px -1px rgba(0, 0, 0, 0.05)"
         }}>
-          <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", marginBottom: "1rem" }}>
-            <h2 style={{ margin: 0, fontSize: "1.35rem", color: "#0f766e" }}>🏪 พื้นที่จัดการร้านค้า (Seller Store Area)</h2>
+          {/* หัวข้อตาม Role */}
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: "1rem", marginBottom: "1rem" }}>
+            <div>
+              <h2 style={{ margin: 0, fontSize: "1.35rem", color: isAdminOrEmployee ? "#b45309" : "#0f766e" }}>
+                {isAdminOrEmployee
+                  ? "🏬 ตรวจสอบและค้นหาร้านค้าทั้งหมด (Admin / Employee)"
+                  : user.TYPE === "Seller"
+                    ? "🏪 ร้านค้าของฉัน (Seller Store Area)"
+                    : "🏪 ข้อมูลร้านค้าของคุณ (บทบาท Customer)"}
+              </h2>
+              <p style={{ color: "#64748b", fontSize: "0.85rem", margin: "0.25rem 0 0 0" }}>
+                {isAdminOrEmployee
+                  ? "สิทธิพิเศษสำหรับเจ้าหน้าที่ สามารถดูและค้นหาข้อมูลร้านค้าทุกร้านในระบบได้"
+                  : user.TYPE === "Seller"
+                    ? "คุณสามารถเปิด/ปิดร้านค้า หรือสร้างร้านค้าใหม่ได้ที่นี่"
+                    : "ร้านของคุณถูกปิดให้บริการอยู่ หากต้องการเปิดร้าน กรุณาสลับบทบาทเป็น Seller ก่อน"}
+              </p>
+            </div>
+
+            {/* ช่องค้นหาสำหรับ Admin และ Employee */}
+            {isAdminOrEmployee && (
+              <div style={{ display: "flex", gap: "0.5rem" }}>
+                <input
+                  type="text"
+                  placeholder="🔍 ค้นหาร้านค้า / ที่ตั้ง..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  style={{ padding: "0.5rem 1rem", borderRadius: "8px", border: "1px solid #cbd5e1", fontSize: "0.9rem", width: "240px" }}
+                />
+              </div>
+            )}
           </div>
-          <p style={{ color: "#64748b", fontSize: "0.9rem", marginTop: 0 }}>
-            ในฐานะผู้ขาย (Seller) คุณสามารถสร้างร้านค้าได้ไม่จำกัด โดยระบบจะกำหนดคะแนนเริ่มต้น (Rating = 0, Selling Rate = 2.5) ให้โดยอัตโนมัติ
-          </p>
 
-          {/* ฟอร์มสร้างร้านค้า */}
-          <form onSubmit={handleCreateStore} style={{
-            backgroundColor: "#f0fdf4",
-            padding: "1.5rem",
-            borderRadius: "12px",
-            border: "1px solid #bbf7d0",
-            marginTop: "1rem"
-          }}>
-            <h4 style={{ margin: "0 0 1rem 0", color: "#166534" }}>➕ เปิดร้านค้าใหม่</h4>
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr auto", gap: "1rem", alignItems: "flex-end" }}>
-              <div>
-                <label style={{ fontSize: "0.85rem", fontWeight: "bold", color: "#166534" }}>ชื่อร้านค้า (ST_NAME):</label>
-                <input
-                  type="text"
-                  required
-                  placeholder="เช่น ร้านขายของดีเมืองตรัง"
-                  value={storeForm.stName}
-                  onChange={(e) => setStoreForm({ ...storeForm, stName: e.target.value })}
-                  style={{ width: "100%", padding: "0.6rem", marginTop: "0.25rem", borderRadius: "6px", border: "1px solid #86efac", boxSizing: "border-box" }}
-                />
+          {/* ฟอร์มสร้างร้านค้าใหม่ (เฉพาะ Seller เท่านั้น) */}
+          {user.TYPE === "Seller" && (
+            <form onSubmit={handleCreateStore} style={{
+              backgroundColor: "#f0fdf4",
+              padding: "1.5rem",
+              borderRadius: "12px",
+              border: "1px solid #bbf7d0",
+              marginTop: "1rem",
+              marginBottom: "1.5rem"
+            }}>
+              <h4 style={{ margin: "0 0 1rem 0", color: "#166534" }}>➕ เปิดร้านค้าใหม่ (สร้างกี่ร้านก็ได้)</h4>
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr auto", gap: "1rem", alignItems: "flex-end" }}>
+                <div>
+                  <label style={{ fontSize: "0.85rem", fontWeight: "bold", color: "#166534" }}>ชื่อร้านค้า (ST_NAME):</label>
+                  <input
+                    type="text"
+                    required
+                    placeholder="เช่น ร้านสะดวกช้อป 24 ชม."
+                    value={storeForm.stName}
+                    onChange={(e) => setStoreForm({ ...storeForm, stName: e.target.value })}
+                    style={{ width: "100%", padding: "0.6rem", marginTop: "0.25rem", borderRadius: "6px", border: "1px solid #86efac", boxSizing: "border-box" }}
+                  />
+                </div>
+                <div>
+                  <label style={{ fontSize: "0.85rem", fontWeight: "bold", color: "#166534" }}>สถานที่ตั้ง (LOCATION):</label>
+                  <input
+                    type="text"
+                    required
+                    placeholder="เช่น อาคาร A ชั้น 1 ถ.สุขุมวิท"
+                    value={storeForm.location}
+                    onChange={(e) => setStoreForm({ ...storeForm, location: e.target.value })}
+                    style={{ width: "100%", padding: "0.6rem", marginTop: "0.25rem", borderRadius: "6px", border: "1px solid #86efac", boxSizing: "border-box" }}
+                  />
+                </div>
+                <button
+                  type="submit"
+                  style={{
+                    padding: "0.65rem 1.4rem",
+                    backgroundColor: "#16a34a",
+                    color: "#ffffff",
+                    border: "none",
+                    borderRadius: "6px",
+                    cursor: "pointer",
+                    fontWeight: "bold",
+                    fontSize: "0.9rem"
+                  }}
+                >
+                  สร้างร้านค้า
+                </button>
               </div>
-              <div>
-                <label style={{ fontSize: "0.85rem", fontWeight: "bold", color: "#166534" }}>สถานที่ตั้ง (LOCATION):</label>
-                <input
-                  type="text"
-                  required
-                  placeholder="เช่น 123/4 ถ.วิเศษ ต.ทับเที่ยง"
-                  value={storeForm.location}
-                  onChange={(e) => setStoreForm({ ...storeForm, location: e.target.value })}
-                  style={{ width: "100%", padding: "0.6rem", marginTop: "0.25rem", borderRadius: "6px", border: "1px solid #86efac", boxSizing: "border-box" }}
-                />
+              <div style={{ marginTop: "0.6rem", fontSize: "0.8rem", color: "#15803d" }}>
+                * กำหนดค่าเริ่มต้น: Rating Point = 0 | Selling Rate = 2.5 | IS_OPEN = 'Y' (เปิดทันที)
               </div>
-              <button
-                type="submit"
-                style={{
-                  padding: "0.65rem 1.4rem",
-                  backgroundColor: "#16a34a",
-                  color: "#ffffff",
-                  border: "none",
-                  borderRadius: "6px",
-                  cursor: "pointer",
-                  fontWeight: "bold",
-                  fontSize: "0.9rem"
-                }}
-              >
-                สร้างร้านค้า
-              </button>
-            </div>
-            <div style={{ marginTop: "0.6rem", fontSize: "0.8rem", color: "#15803d" }}>
-              * ข้อมูลเริ่มต้น: Rating Point = 0 | Selling Rate = 2.5
-            </div>
-          </form>
+            </form>
+          )}
 
-          {/* รายการร้านค้าที่มีในระบบ */}
-          <div style={{ marginTop: "2rem" }}>
-            <h3 style={{ fontSize: "1.1rem", margin: "0 0 1rem 0" }}>📦 รายชื่อร้านค้าในระบบ ({stores.length} ร้าน)</h3>
+          {/* รายการร้านค้า */}
+          <div>
+            <h3 style={{ fontSize: "1.05rem", margin: "0 0 1rem 0" }}>
+              📦 {isAdminOrEmployee ? `ผลการค้นหาร้านค้า (${displayedStores.length} ร้าน)` : "ร้านค้าในการดูแลของคุณ"}
+            </h3>
+
             {storeLoading ? (
-              <p style={{ color: "#64748b" }}>กำลังโหลดข้อมูลร้านค้า...</p>
-            ) : stores.length === 0 ? (
-              <p style={{ color: "#94a3b8" }}>ยังไม่มีร้านค้าในระบบ</p>
+              <p style={{ color: "#64748b" }}>กำลังโหลดข้อมูลร้านค้า... ⏳</p>
+            ) : displayedStores.length === 0 ? (
+              <div style={{ padding: "2rem", textAlign: "center", backgroundColor: "#f8fafc", borderRadius: "8px", color: "#94a3b8" }}>
+                {isAdminOrEmployee
+                  ? "ไม่พบร้านค้าที่ตรงกับคำค้นหา"
+                  : user.TYPE === "Seller"
+                    ? "คุณยังไม่มีร้านค้า กรุณาสร้างร้านค้าใหม่ด้านบน"
+                    : "ไม่มีข้อมูลร้านค้า"}
+              </div>
             ) : (
-              <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(250px, 1fr))", gap: "1rem" }}>
-                {stores.map((s) => (
-                  <div
-                    key={s.ST_ID}
-                    style={{
-                      border: s.ST_ID === user.ST_ID ? "2px solid #10b981" : "1px solid #e2e8f0",
-                      padding: "1rem",
-                      borderRadius: "10px",
-                      backgroundColor: s.ST_ID === user.ST_ID ? "#f0fdf4" : "#ffffff",
-                      position: "relative"
-                    }}
-                  >
-                    {s.ST_ID === user.ST_ID && (
-                      <span style={{
-                        position: "absolute",
-                        top: 8,
-                        right: 8,
-                        fontSize: "0.75rem",
-                        backgroundColor: "#10b981",
-                        color: "white",
-                        padding: "0.15rem 0.5rem",
-                        borderRadius: "9999px",
-                        fontWeight: "bold"
-                      }}>
-                        ร้านของคุณ
-                      </span>
-                    )}
-                    <h4 style={{ margin: "0 0 0.4rem 0", fontSize: "1.05rem" }}>{s.ST_NAME}</h4>
-                    <p style={{ margin: "0 0 0.5rem 0", color: "#64748b", fontSize: "0.85rem" }}>📍 {s.LOCATION}</p>
-                    <div style={{ display: "flex", justifyContent: "space-between", fontSize: "0.8rem", color: "#334155", borderTop: "1px dashed #cbd5e1", paddingTop: "0.5rem" }}>
-                      <span>⭐ Rating: <strong>{s.RATING_POINT ?? 0}</strong></span>
-                      <span>📈 Rate: <strong>{s.SELLING_RATE ?? 2.5}</strong></span>
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(280px, 1fr))", gap: "1rem" }}>
+                {displayedStores.map((s) => {
+                  const isOpen = s.IS_OPEN === "Y";
+                  const isMyStore = s.AC_ID === user.AC_ID;
+
+                  return (
+                    <div
+                      key={s.ST_ID}
+                      style={{
+                        border: isOpen ? "2px solid #86efac" : "2px solid #fca5a5",
+                        padding: "1.25rem",
+                        borderRadius: "12px",
+                        backgroundColor: isOpen ? "#f0fdf4" : "#fef2f2",
+                        position: "relative",
+                        display: "flex",
+                        flexDirection: "column",
+                        justifyContent: "space-between"
+                      }}
+                    >
+                      <div>
+                        {/* ป้ายสถานะเปิด/ปิดร้าน */}
+                        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: "0.5rem" }}>
+                          <span
+                            style={{
+                              backgroundColor: isOpen ? "#16a34a" : "#dc2626",
+                              color: "white",
+                              padding: "0.2rem 0.6rem",
+                              borderRadius: "9999px",
+                              fontSize: "0.75rem",
+                              fontWeight: "bold",
+                            }}
+                          >
+                            {isOpen ? "🟢 เปิดให้บริการ (IS_OPEN = Y)" : "🔴 ปิดให้บริการ (IS_OPEN = N)"}
+                          </span>
+                          {isMyStore && (
+                            <span style={{ fontSize: "0.75rem", color: "#0f766e", fontWeight: "bold" }}>
+                              ⭐ ร้านของคุณ
+                            </span>
+                          )}
+                        </div>
+
+                        <h4 style={{ margin: "0 0 0.35rem 0", fontSize: "1.1rem" }}>
+                          {s.ST_NAME} <span style={{ fontSize: "0.8rem", color: "#64748b" }}>#{s.ST_ID}</span>
+                        </h4>
+                        <p style={{ margin: "0 0 0.75rem 0", color: "#64748b", fontSize: "0.85rem" }}>
+                          📍 {s.LOCATION}
+                        </p>
+                      </div>
+
+                      <div>
+                        <div style={{ display: "flex", justifyContent: "space-between", fontSize: "0.8rem", color: "#334155", borderTop: "1px dashed #cbd5e1", paddingTop: "0.5rem", marginBottom: "0.75rem" }}>
+                          <span>⭐ Rating: <strong>{s.RATING_POINT ?? 0}</strong></span>
+                          <span>📈 Rate: <strong>{s.SELLING_RATE ?? 2.5}</strong></span>
+                        </div>
+
+                        {/* ปุ่มจัดการสินค้าในร้าน และปุ่มแก้ไขข้อมูลร้าน (เฉพาะเจ้าของร้าน หรือ Admin เท่านั้น) */}
+                        {((user.TYPE === "Seller" && isMyStore) || user.TYPE === "Admin") && (
+                          <div style={{ display: "flex", gap: "0.5rem", marginBottom: "0.5rem" }}>
+                            <button
+                              onClick={() => navigate(`/product-manager/${s.ST_ID}`)}
+                              style={{
+                                flex: 1,
+                                padding: "0.5rem",
+                                backgroundColor: "#2563eb",
+                                color: "white",
+                                border: "none",
+                                borderRadius: "6px",
+                                cursor: "pointer",
+                                fontWeight: "bold",
+                                fontSize: "0.85rem",
+                                boxShadow: "0 1px 2px rgba(0,0,0,0.05)"
+                              }}
+                            >
+                              📦 จัดการสินค้า
+                            </button>
+                            <button
+                              onClick={() => handleOpenEditStore(s)}
+                              style={{
+                                padding: "0.5rem 0.8rem",
+                                backgroundColor: "#f1f5f9",
+                                color: "#1e293b",
+                                border: "1px solid #cbd5e1",
+                                borderRadius: "6px",
+                                cursor: "pointer",
+                                fontWeight: "bold",
+                                fontSize: "0.85rem"
+                              }}
+                              title="แก้ไขชื่อและที่ตั้งร้านค้า"
+                            >
+                              ✏️ แก้ไขร้าน
+                            </button>
+                          </div>
+                        )}
+
+                        {/* ปุ่มกดเปิด-ปิดร้านค้า (Seller จัดการร้านตัวเอง, Admin/Employee จัดการได้ทุกร้าน) */}
+                        {(user.TYPE === "Seller" && isMyStore) || isAdminOrEmployee ? (
+                          <button
+                            onClick={() => handleToggleStoreStatus(s.ST_ID, s.IS_OPEN)}
+                            style={{
+                              width: "100%",
+                              padding: "0.5rem",
+                              backgroundColor: isOpen ? "#ef4444" : "#16a34a",
+                              color: "white",
+                              border: "none",
+                              borderRadius: "6px",
+                              cursor: "pointer",
+                              fontWeight: "bold",
+                              fontSize: "0.85rem"
+                            }}
+                          >
+                            {isOpen ? "🔴 กดเพื่อปิดร้านชั่วคราว" : "🟢 กดเพื่อเปิดร้านให้บริการ"}
+                          </button>
+                        ) : (
+                          user.TYPE === "Customer" && (
+                            <div style={{ fontSize: "0.75rem", color: "#b91c1c", textAlign: "center", fontStyle: "italic" }}>
+                              * ต้องสลับเป็น Seller เพื่อเปิดร้าน
+                            </div>
+                          )
+                        )}
+                      </div>
                     </div>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             )}
           </div>
@@ -665,7 +887,7 @@ function Profile() {
       )}
 
       {/* ==================================================== */}
-      {/* 5. แผงควบคุมสิทธิ์เพิ่มเติม (ตาม Role) */}
+      {/* 5. เมนูสิทธิ์ตาม Role */}
       {/* ==================================================== */}
       <section style={{
         backgroundColor: "#ffffff",
@@ -676,7 +898,7 @@ function Profile() {
       }}>
         <h3 style={{ margin: "0 0 1rem 0", fontSize: "1.1rem" }}>📋 เมนูและสิทธิ์การใช้งาน (Role: {user.TYPE})</h3>
         <div style={{ display: "flex", gap: "0.75rem", flexWrap: "wrap" }}>
-          {(user.TYPE === "Admin" || user.TYPE === "Employee") && (
+          {isAdminOrEmployee && (
             <>
               <button style={{ padding: "0.75rem 1rem", background: "#fef3c7", border: "1px solid #f59e0b", borderRadius: "8px", cursor: "pointer" }}>
                 👨‍💼 จัดการข้อมูลพนักงาน
@@ -684,26 +906,92 @@ function Profile() {
               <button style={{ padding: "0.75rem 1rem", background: "#fef3c7", border: "1px solid #f59e0b", borderRadius: "8px", cursor: "pointer" }}>
                 👥 จัดการข้อมูลลูกค้า/ผู้ขาย
               </button>
-              <button style={{ padding: "0.75rem 1rem", background: "#fef3c7", border: "1px solid #f59e0b", borderRadius: "8px", cursor: "pointer" }}>
-                📊 ดูสถิติร้านค้าทั้งหมด (ส่วนกลาง)
-              </button>
             </>
-          )}
-
-          {user.TYPE === "Seller" && (
-            <button style={{ padding: "0.75rem 1rem", background: "#dcfce7", border: "1px solid #10b981", borderRadius: "8px", cursor: "pointer" }}>
-              📈 ดูสถิติการขายของร้านตัวเอง
-            </button>
           )}
 
           <button
             onClick={() => navigate("/market")}
             style={{ padding: "0.75rem 1rem", background: "#e0e7ff", border: "1px solid #6366f1", borderRadius: "8px", cursor: "pointer" }}
           >
-            🛒 ตะกร้าสินค้าและการสั่งซื้อ (ลูกค้า)
+            🛒 ตะกร้าสินค้าและการสั่งซื้อ
           </button>
         </div>
       </section>
+
+      {/* Modal แก้ไขชื่อร้านและสถานที่ตั้ง */}
+      {editStoreModalOpen && (
+        <div style={{
+          position: "fixed",
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          backgroundColor: "rgba(0, 0, 0, 0.5)",
+          display: "flex",
+          justifyContent: "center",
+          alignItems: "center",
+          zIndex: 1000,
+          padding: "1rem"
+        }}>
+          <div style={{
+            backgroundColor: "#ffffff",
+            padding: "2rem",
+            borderRadius: "16px",
+            width: "100%",
+            maxWidth: "460px",
+            boxShadow: "0 20px 25px -5px rgba(0, 0, 0, 0.2)"
+          }}>
+            <h3 style={{ margin: "0 0 0.5rem 0", fontSize: "1.25rem" }}>✏️ แก้ไขข้อมูลร้านค้า #{storeEditForm.stId}</h3>
+            <p style={{ color: "#64748b", fontSize: "0.85rem", margin: "0 0 1.25rem 0" }}>
+              คุณสามารถเปลี่ยนชื่อร้านค้าและสถานที่ตั้งของร้านได้
+            </p>
+
+            <form onSubmit={handleSaveStore} style={{ display: "flex", flexDirection: "column", gap: "1rem" }}>
+              <div>
+                <label style={{ display: "block", fontSize: "0.85rem", fontWeight: "bold", color: "#334155" }}>
+                  ชื่อร้านค้า (ST_NAME):
+                </label>
+                <input
+                  type="text"
+                  required
+                  value={storeEditForm.stName}
+                  onChange={(e) => setStoreEditForm({ ...storeEditForm, stName: e.target.value })}
+                  style={{ width: "100%", padding: "0.6rem", marginTop: "0.3rem", borderRadius: "6px", border: "1px solid #cbd5e1", boxSizing: "border-box" }}
+                />
+              </div>
+
+              <div>
+                <label style={{ display: "block", fontSize: "0.85rem", fontWeight: "bold", color: "#334155" }}>
+                  สถานที่ตั้ง (LOCATION):
+                </label>
+                <input
+                  type="text"
+                  required
+                  value={storeEditForm.location}
+                  onChange={(e) => setStoreEditForm({ ...storeEditForm, location: e.target.value })}
+                  style={{ width: "100%", padding: "0.6rem", marginTop: "0.3rem", borderRadius: "6px", border: "1px solid #cbd5e1", boxSizing: "border-box" }}
+                />
+              </div>
+
+              <div style={{ display: "flex", justifyContent: "flex-end", gap: "0.5rem", marginTop: "1rem" }}>
+                <button
+                  type="button"
+                  onClick={() => setEditStoreModalOpen(false)}
+                  style={{ padding: "0.5rem 1rem", backgroundColor: "#f1f5f9", border: "1px solid #cbd5e1", borderRadius: "6px", cursor: "pointer" }}
+                >
+                  ยกเลิก
+                </button>
+                <button
+                  type="submit"
+                  style={{ padding: "0.5rem 1.4rem", backgroundColor: "#2563eb", color: "white", border: "none", borderRadius: "6px", cursor: "pointer", fontWeight: "bold" }}
+                >
+                  💾 บันทึกการแก้ไข
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
 
     </div>
   );

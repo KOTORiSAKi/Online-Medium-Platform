@@ -11,6 +11,7 @@ import Login from "./Pages/Login";
 import Profile from "./Pages/Profile";
 import Market from "./Pages/Market";
 import Register from "./Pages/Register";
+import ProductManager from "./Pages/ProductManager";
 
 function App() {
   return (
@@ -30,6 +31,7 @@ function App() {
             <Route path="/profile" element={<Profile />} />
             <Route path="/market" element={<Market />} />
             <Route path="/register" element={<Register />} />
+            <Route path="/product-manager/:stId" element={<ProductManager />} />
             <Route
               path="*"
               element={
