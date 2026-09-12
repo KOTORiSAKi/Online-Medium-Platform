@@ -1,4 +1,3 @@
-// นำโค้ดนี้ไปแทนที่ไฟล์ LiquidGlassCard.jsx ทั้งหมดได้เลยครับ
 import React, { useEffect, useRef } from "react";
 
 const fsSource = `
@@ -200,7 +199,6 @@ export default function LiquidGlassCard({
       const newWidth = Math.floor(rect.width * dpr);
       const newHeight = Math.floor(rect.height * dpr);
 
-      // 🛠️ อัปเดตเฉพาะตอนที่ขนาดเปลี่ยนจริงๆ เพื่อไม่ให้กระทบประสิทธิภาพ
       if (canvas.width !== newWidth || canvas.height !== newHeight) {
         canvas.width = newWidth;
         canvas.height = newHeight;
@@ -209,8 +207,6 @@ export default function LiquidGlassCard({
 
     const resizeObserver = new ResizeObserver(updateSize);
     resizeObserver.observe(container);
-    
-    // 🛠️ บังคับคำนวณขนาดทันทีในเฟรมแรก ป้องกันปัญหา Canvas เบลอจากขนาดเริ่มต้น 300x150
     updateSize(); 
 
     const intersectionObserver = new IntersectionObserver((entries) => {
@@ -269,27 +265,32 @@ export default function LiquidGlassCard({
       if (state.current.currentMouse[0] === -1000) {
         state.current.smoothedMouse = [localX, localY];
       }
-
       state.current.currentMouse = [localX, localY];
     };
 
     container.addEventListener("mousemove", handleMouseMove);
 
+    // ✅ แก้ไขตรงนี้: เซ็ตค่า Texture ตั้งแต่แรก ไม่ต้องรอ img.onload
     const texture = gl.createTexture();
-    const img = new Image();
-    img.crossOrigin = "anonymous";
-    img.src = imageUrl;
-    img.onload = () => {
-      if (!isActive) return;
+    gl.bindTexture(gl.TEXTURE_2D, texture);
+    gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, true);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+    // ใส่พิกเซลใสตั้งต้น เพื่อไม่ให้ WebGL งงตอนไม่มีภาพ
+    gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, 1, 1, 0, gl.RGBA, gl.UNSIGNED_BYTE, new Uint8Array([0,0,0,0]));
 
-      state.current.imageRes = [img.naturalWidth, img.naturalHeight];
-      gl.bindTexture(gl.TEXTURE_2D, texture);
-      gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, true);
-      gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, img);
-      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
-      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
-      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
-    };
+    if (imageUrl) {
+      const img = new Image();
+      img.crossOrigin = "anonymous";
+      img.src = imageUrl;
+      img.onload = () => {
+        if (!isActive) return;
+        state.current.imageRes = [img.naturalWidth, img.naturalHeight];
+        gl.bindTexture(gl.TEXTURE_2D, texture);
+        gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, img);
+      };
+    }
 
     const startTime = performance.now();
 
@@ -318,16 +319,12 @@ export default function LiquidGlassCard({
 
         const currentTime = (performance.now() - startTime) / 1000.0;
 
+        // ดึงภาพจาก HTML2Canvas มาใส่ใน WebGL
         if (s.dynamicBg && s.dynamicBg.width > 0 && s.dynamicBg.height > 0) {
           gl.bindTexture(gl.TEXTURE_2D, texture);
           gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, s.dynamicBg);
           s.imageRes = [s.dynamicBg.width, s.dynamicBg.height];
           s.isUsingDynamic = true;
-        } else if (s.isUsingDynamic && img.complete && img.naturalWidth > 0) {
-          gl.bindTexture(gl.TEXTURE_2D, texture);
-          gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, img);
-          s.imageRes = [img.naturalWidth, img.naturalHeight];
-          s.isUsingDynamic = false;
         }
 
         gl.viewport(0, 0, canvas.width, canvas.height);
@@ -394,7 +391,8 @@ export default function LiquidGlassCard({
         }
       }
     };
-  }, [imageUrl, borderRadius]);
+  }, [imageUrl, borderRadius, dynamicBgSource]); 
+  // ↑ อัปเดต Dependencies เพื่อดักจับตอนส่งภาพแคปหน้าจอมาใหม่
 
   return (
     <div

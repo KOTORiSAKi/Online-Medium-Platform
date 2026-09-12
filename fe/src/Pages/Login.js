@@ -1,79 +1,151 @@
-import React, { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import React, { useState } from "react";
+import { useNavigate, Link } from "react-router-dom"; // 💡 เพิ่ม Link ตรงนี้
 
 function Login() {
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
-  const [role, setRole] = useState('seller'); // เพื่อจำลองดู Dashboard ในหน้า Profile
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [errorMsg, setErrorMsg] = useState("");
   const navigate = useNavigate();
 
-  const handleLogin = (e) => {
+  const handleLogin = async (e) => {
     e.preventDefault();
-    alert(`เข้าสู่ระบบในฐานะ: ${email} (${role === 'seller' ? 'มีสิทธิ์ Seller Dashboard' : 'ผู้ซื้อทั่วไป'})`);
-    navigate('/profile');
+    setErrorMsg("");
+    try {
+      const res = await fetch("http://localhost:5000/api/login", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email, password }),
+      });
+      const data = await res.json();
+
+      if (res.ok) {
+        // เก็บข้อมูล User ลงเครื่อง (เสมือน Login Session)
+        localStorage.setItem("user", JSON.stringify(data));
+        alert(`ยินดีต้อนรับคุณ ${data.FNAME}!`);
+        navigate("/profile");
+      } else {
+        setErrorMsg(data.error);
+      }
+    } catch (err) {
+      setErrorMsg("ไม่สามารถเชื่อมต่อเซิร์ฟเวอร์ได้");
+    }
   };
 
   return (
-    <div style={{ maxWidth: '400px', margin: '4rem auto', padding: '2rem', border: '1px solid #e2e8f0', borderRadius: '12px', boxShadow: '0 4px 6px rgba(0,0,0,0.05)' }}>
-      <h2 style={{ textAlign: 'center', marginBottom: '0.5rem' }}>🔐 เข้าสู่ระบบ</h2>
-      <p style={{ textAlign: 'center', color: '#64748b', fontSize: '0.9rem', marginBottom: '1.5rem' }}>
-        เข้าใช้งานบัญชี Marketplace ของคุณ
+    <div
+      style={{
+        maxWidth: "400px",
+        margin: "4rem auto",
+        padding: "2rem",
+        border: "1px solid #e2e8f0",
+        borderRadius: "12px",
+        background: "#fff",
+      }}
+    >
+      <h2 style={{ textAlign: "center", marginBottom: "0.5rem" }}>
+        🔐 เข้าสู่ระบบ
+      </h2>
+      <p
+        style={{
+          textAlign: "center",
+          color: "#64748b",
+          fontSize: "0.9rem",
+          marginBottom: "1.5rem",
+        }}
+      >
+        ยินดีต้อนรับสู่แพลตฟอร์มของเรา
       </p>
 
-      <form onSubmit={handleLogin} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-        <div>
-          <label style={{ display: 'block', fontSize: '0.85rem', marginBottom: '0.25rem' }}>อีเมล / ชื่อผู้ใช้</label>
-          <input
-            type="text"
-            required
-            placeholder="your-name@example.com"
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            style={{ width: '100%', padding: '0.6rem', boxSizing: 'border-box', borderRadius: '6px', border: '1px solid #cbd5e0' }}
-          />
+      {errorMsg && (
+        <div
+          style={{
+            background: "#fee2e2",
+            color: "#b91c1c",
+            padding: "0.75rem",
+            borderRadius: "6px",
+            textAlign: "center",
+            fontSize: "0.9rem",
+          }}
+        >
+          {errorMsg}
         </div>
+      )}
 
-        <div>
-          <label style={{ display: 'block', fontSize: '0.85rem', marginBottom: '0.25rem' }}>รหัสผ่าน</label>
-          <input
-            type="password"
-            required
-            placeholder="••••••••"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            style={{ width: '100%', padding: '0.6rem', boxSizing: 'border-box', borderRadius: '6px', border: '1px solid #cbd5e0' }}
-          />
-        </div>
-
-        {/* ตัวเลือกจำลอง Role สำหรับทดสอบหน้า Profile */}
-        <div>
-          <label style={{ display: 'block', fontSize: '0.85rem', marginBottom: '0.25rem' }}>จำลองสถานะบัญชี:</label>
-          <select
-            value={role}
-            onChange={(e) => setRole(e.target.value)}
-            style={{ width: '100%', padding: '0.6rem', borderRadius: '6px', border: '1px solid #cbd5e0' }}
-          >
-            <option value="seller">ผู้ขาย / ร้านค้า (แสดง Dashboard)</option>
-            <option value="buyer">ผู้ซื้อทั่วไป (เฉพาะข้อมูลบัญชี)</option>
-          </select>
-        </div>
+      <form
+        onSubmit={handleLogin}
+        style={{
+          display: "flex",
+          flexDirection: "column",
+          gap: "1rem",
+          marginTop: "1rem",
+        }}
+      >
+        <input
+          type="email"
+          placeholder="Email Address"
+          value={email}
+          onChange={(e) => setEmail(e.target.value)}
+          required
+          style={{
+            padding: "0.75rem",
+            borderRadius: "6px",
+            border: "1px solid #cbd5e1",
+          }}
+        />
+        <input
+          type="password"
+          placeholder="Password"
+          value={password}
+          onChange={(e) => setPassword(e.target.value)}
+          required
+          style={{
+            padding: "0.75rem",
+            borderRadius: "6px",
+            border: "1px solid #cbd5e1",
+          }}
+        />
 
         <button
           type="submit"
           style={{
-            marginTop: '0.5rem',
-            padding: '0.75rem',
-            backgroundColor: '#2563eb',
-            color: 'white',
-            border: 'none',
-            borderRadius: '6px',
-            cursor: 'pointer',
-            fontWeight: 'bold'
+            padding: "0.85rem",
+            backgroundColor: "#2563eb",
+            color: "white",
+            border: "none",
+            borderRadius: "6px",
+            cursor: "pointer",
+            fontWeight: "bold",
+            fontSize: "1rem",
+            marginTop: "0.5rem",
           }}
         >
           เข้าสู่ระบบ
         </button>
       </form>
+
+      {/* 💡 ส่วนเชื่อมไปหน้า Register */}
+      <div
+        style={{
+          textAlign: "center",
+          marginTop: "1.5rem",
+          paddingTop: "1.5rem",
+          borderTop: "1px solid #e2e8f0",
+        }}
+      >
+        <span style={{ color: "#64748b", fontSize: "0.9rem" }}>
+          ยังไม่มีบัญชีใช่ไหม?{" "}
+        </span>
+        <Link
+          to="/register"
+          style={{
+            color: "#2563eb",
+            textDecoration: "none",
+            fontWeight: "bold",
+          }}
+        >
+          สมัครสมาชิกที่นี่
+        </Link>
+      </div>
     </div>
   );
 }

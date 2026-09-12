@@ -1,101 +1,124 @@
-import React from 'react';
-import { Link } from 'react-router-dom';
+import React, { useState, useEffect } from "react";
+import { Link } from "react-router-dom";
 
 function Home() {
-  // จำลองรายการสินค้าที่ User ต่างๆ ลงขาย
-  const products = [
-    {
-      id: 1,
-      title: 'คีย์บอร์ด Custom Mechanical (Gateron Yellow)',
-      price: 2490,
-      seller: 'User_Somchai',
-      category: 'Electronics',
-      image: 'https://placehold.co/300x200?text=Mechanical+Keyboard',
-      location: 'กรุงเทพฯ'
-    },
-    {
-      id: 2,
-      title: 'iPad Air 5 64GB Wi-Fi สภาพ 98%',
-      price: 15500,
-      seller: 'KOTORiSAKi',
-      category: 'Gadgets',
-      image: 'https://placehold.co/300x200?text=iPad+Air+5',
-      location: 'เชียงใหม่'
-    },
-    {
-      id: 3,
-      title: 'หนังสือ Clean Code ฉบับแปลไทย',
-      price: 450,
-      seller: 'BookWorm_Dev',
-      category: 'Books',
-      image: 'https://placehold.co/300x200?text=Clean+Code+Book',
-      location: 'นนทบุรี'
-    },
-    {
-      id: 4,
-      title: 'เก้าอี้เพื่อสุขภาพ Ergonomic Chair',
-      price: 3890,
-      seller: 'ErgoComfort',
-      category: 'Furniture',
-      image: 'https://placehold.co/300x200?text=Ergonomic+Chair',
-      location: 'กรุงเทพฯ'
-    },
-  ];
+  const [products, setProducts] = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    fetch("http://localhost:5000/api/products")
+      .then((res) => res.json())
+      .then((data) => {
+        setProducts(data);
+        setLoading(false);
+      })
+      .catch(console.error);
+  }, []);
+
+  if (loading)
+    return (
+      <div style={{ padding: "2rem", textAlign: "center" }}>
+        กำลังโหลดข้อมูลสินค้า... ⏳
+      </div>
+    );
 
   return (
-    <div style={{ padding: '2rem', maxWidth: '1100px', margin: '0 auto' }}>
-      <header style={{ marginBottom: '2rem' }}>
-        <h1 style={{ margin: 0, fontSize: '1.8rem' }}>🛍️ ตลาดสินค้าชุมชน (Marketplace)</h1>
-        <p style={{ color: '#64748b' }}>สำรวจสินค้าคุณภาพที่ลงขายโดยผู้ใช้งานในแพลตฟอร์ม</p>
-      </header>
+    <div style={{ padding: "2rem", maxWidth: "1100px", margin: "0 auto" }}>
+      {/* <header style={{ marginBottom: "2rem" }}>
+        <h1 style={{ margin: 0, fontSize: "1.8rem" }}>🛍️ ตลาดสินค้าชุมชน</h1>
+        <p style={{ color: "#64748b" }}>สินค้าทั้งหมดจากร้านค้าชั้นนำ</p>
+      </header> */}
 
-      {/* Grid แสดงการ์ดสินค้า */}
-      <div style={{
-        display: 'grid',
-        gridTemplateColumns: 'repeat(auto-fill, minmax(240px, 1fr))',
-        gap: '1.5rem'
-      }}>
+      <div
+        style={{
+          display: "grid",
+          gridTemplateColumns: "repeat(auto-fill, minmax(240px, 1fr))",
+          gap: "1.5rem",
+        }}
+      >
         {products.map((item) => (
           <div
-            key={item.id}
+            key={item.PRODUCT_ID}
             style={{
-              border: '1px solid #e2e8f0',
-              borderRadius: '12px',
-              overflow: 'hidden',
-              backgroundColor: '#fff',
-              boxShadow: '0 2px 5px rgba(0,0,0,0.05)',
-              display: 'flex',
-              flexDirection: 'column'
+              border: "1px solid #e2e8f0",
+              borderRadius: "12px",
+              overflow: "hidden",
+              backgroundColor: "#fff",
+              position: "relative",
             }}
           >
-            <img src={item.image} alt={item.title} style={{ width: '100%', height: '160px', objectFit: 'cover' }} />
-            
-            <div style={{ padding: '1rem', display: 'flex', flexDirection: 'column', flexGrow: 1 }}>
-              <span style={{ fontSize: '0.75rem', color: '#64748b', textTransform: 'uppercase' }}>
-                {item.category} • 📍{item.location}
-              </span>
-              <h3 style={{ fontSize: '1rem', margin: '0.5rem 0', flexGrow: 1 }}>{item.title}</h3>
-              
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '0.5rem' }}>
-                <span style={{ fontSize: '1.15rem', fontWeight: 'bold', color: '#059669' }}>
-                  ฿{item.price.toLocaleString()}
-                </span>
-                <span style={{ fontSize: '0.8rem', color: '#64748b' }}>โดย: {item.seller}</span>
-              </div>
+            {/* โชว์รูปจริงจาก DB ถ้าไม่มีให้ใช้รูปจำลอง */}
+            <img
+              src={
+                item.IMAGE_URL ||
+                `https://placehold.co/300x200?text=${encodeURIComponent(item.PRODUCT_NAME)}`
+              }
+              alt={item.PRODUCT_NAME}
+              style={{ width: "100%", height: "160px", objectFit: "cover" }}
+            />
 
-              <Link
-                to={`/product/${item.id}`}
+            {/* ป้ายเตือนสินค้าหมด */}
+            {item.STOCK <= 0 && (
+              <div
                 style={{
-                  marginTop: '1rem',
-                  display: 'block',
-                  textAlign: 'center',
-                  padding: '0.5rem',
-                  backgroundColor: '#2563eb',
-                  color: 'white',
-                  borderRadius: '6px',
-                  textDecoration: 'none',
-                  fontSize: '0.9rem',
-                  fontWeight: '500'
+                  position: "absolute",
+                  top: 10,
+                  right: 10,
+                  background: "#ef4444",
+                  color: "white",
+                  padding: "0.2rem 0.6rem",
+                  borderRadius: "4px",
+                  fontSize: "0.8rem",
+                  fontWeight: "bold",
+                }}
+              >
+                สินค้าหมด
+              </div>
+            )}
+
+            <div
+              style={{
+                padding: "1rem",
+                display: "flex",
+                flexDirection: "column",
+              }}
+            >
+              <span style={{ fontSize: "0.75rem", color: "#64748b" }}>
+                {item.TYPE} • เหลือ {item.STOCK} ชิ้น
+              </span>
+              <h3 style={{ fontSize: "1rem", margin: "0.5rem 0" }}>
+                {item.PRODUCT_NAME}
+              </h3>
+              <div
+                style={{
+                  display: "flex",
+                  justifyContent: "space-between",
+                  alignItems: "center",
+                  marginTop: "0.5rem",
+                }}
+              >
+                <span
+                  style={{
+                    fontSize: "1.15rem",
+                    fontWeight: "bold",
+                    color: "#059669",
+                  }}
+                >
+                  ฿
+                  {item.PRODUCT_PRICE ? item.PRODUCT_PRICE.toLocaleString() : 0}
+                </span>
+              </div>
+              <Link
+                to={`/product/${item.PRODUCT_ID}`}
+                style={{
+                  marginTop: "1rem",
+                  display: "block",
+                  textAlign: "center",
+                  padding: "0.5rem",
+                  backgroundColor: "#2563eb",
+                  color: "white",
+                  borderRadius: "6px",
+                  textDecoration: "none",
                 }}
               >
                 ดูรายละเอียด
