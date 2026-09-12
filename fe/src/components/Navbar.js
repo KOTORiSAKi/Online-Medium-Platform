@@ -6,6 +6,7 @@ import html2canvas from 'html2canvas';
 function Navbar() {
   const fullPageCanvasRef = useRef(null);
   const viewportCanvasRef = useRef(document.createElement('canvas'));
+  const currentBgColorRef = useRef('#f4f6f8');
   const isCapturing = useRef(false);
   const location = useLocation(); // ไว้ดักจับเวลาเปลี่ยนหน้าเว็บ (Routing)
   const navigate = useNavigate();
@@ -67,69 +68,148 @@ function Navbar() {
     let resizeTimer;
     const scale = 0.5;
 
+    // ฟังก์ชันดึงสีพื้นหลังปัจจุบันของหน้าเว็บ (รองรับ Theme Switcher ในอนาคต)
+    const getWebBackgroundColor = () => {
+      try {
+        const candidates = [
+          document.querySelector('.App'),
+          document.body,
+          document.documentElement,
+        ];
+        for (const el of candidates) {
+          if (!el) continue;
+          const bg = window.getComputedStyle(el).backgroundColor;
+          if (bg && bg !== 'transparent' && bg !== 'rgba(0, 0, 0, 0)') {
+            return bg;
+          }
+        }
+      } catch (e) { }
+      return '#f4f6f8';
+    };
+
+    const updateCurrentBgColor = () => {
+      const bg = getWebBackgroundColor();
+      currentBgColorRef.current = bg;
+      return bg;
+    };
+
+    // อัปเดตสีพื้นหลังปัจจุบันทันที
+    updateCurrentBgColor();
+
+    // เริ่มต้น Canvas ของ Viewport ทันทีโดยไม่ต้องรอ html2canvas
+    // เพื่อให้เวลากดโหลดเว็บครั้งแรก Navbar จะได้สีเดียวกับ Background (ไม่เป็นกล่องดำ)
+    const vwInit = Math.max(1, Math.floor(window.innerWidth * scale));
+    const vhInit = Math.max(1, Math.floor(window.innerHeight * scale));
+    viewportCanvasRef.current.width = vwInit;
+    viewportCanvasRef.current.height = vhInit;
+    const initCtx = viewportCanvasRef.current.getContext('2d', { alpha: false });
+    if (initCtx) {
+      initCtx.fillStyle = currentBgColorRef.current;
+      initCtx.fillRect(0, 0, vwInit, vhInit);
+    }
+
+    let needsRecapture = false;
+
     const captureFullPage = async () => {
-      if (isCapturing.current) return;
+      if (isCapturing.current) {
+        needsRecapture = true;
+        return;
+      }
       isCapturing.current = true;
+      needsRecapture = false;
+
       try {
         const canvas = await html2canvas(document.body, {
           useCORS: true,
           scale: scale,
           logging: false,
         });
-        if (isActive) {
+        if (isActive && canvas) {
           fullPageCanvasRef.current = canvas;
         }
       } catch (err) {
         console.error("Full page capture failed", err);
       } finally {
         isCapturing.current = false;
+        if (needsRecapture && isActive) {
+          needsRecapture = false;
+          setTimeout(captureFullPage, 80);
+        }
       }
     };
 
-    // แคปทันทีที่โหลด หรือเมื่อเปลี่ยนหน้าเว็บผ่าน React Router
+    // แคปทันทีที่โหลด
     captureFullPage();
 
-    // ดักจับ Event พิเศษที่ส่งมาจากหน้าอื่นๆ (เช่น กดเปิด Modal, โหลดสินค้าใหม่เสร็จ)
+    // แคปซ้ำอัตโนมัติเมื่อคอนเทนต์และรูปภาพในหน้าเริ่มแสดงผล
+    const initialTimer1 = setTimeout(captureFullPage, 400);
+    const initialTimer2 = setTimeout(captureFullPage, 1200);
+
+    // ดักจับ Event พิเศษที่ส่งมาจากหน้าอื่นๆ (เช่น กดเปิด Modal, โหลดสินค้าเสร็จ, หรือเปลี่ยน Theme)
     const handleManualUpdate = () => {
+      updateCurrentBgColor();
       clearTimeout(resizeTimer);
       captureFullPage();
     };
     window.addEventListener('update-glass', handleManualUpdate);
+    window.addEventListener('theme-change', handleManualUpdate);
+
+    // ดักจับการเปลี่ยนแปลง Theme เฉพาะบน <html> (เช่น class 'dark' หรือ data-theme เพื่อไม่ให้กระทบกับการทำงานของ html2canvas)
+    const themeObserver = new MutationObserver(() => {
+      updateCurrentBgColor();
+      clearTimeout(resizeTimer);
+      resizeTimer = setTimeout(captureFullPage, 80);
+    });
+
+    themeObserver.observe(document.documentElement, {
+      attributes: true,
+      attributeFilter: ['class', 'data-theme'],
+    });
 
     const resizeObserver = new ResizeObserver(() => {
       clearTimeout(resizeTimer);
-      // ลดเวลาหน่วงลงเหลือ 150ms เพื่อให้แคปตามได้ไวขึ้นเมื่อหน้าเว็บยืดออก
-      resizeTimer = setTimeout(captureFullPage, 150);
+      // แคปเจอร์ตามเมื่อหน้าเว็บยืด-หด
+      resizeTimer = setTimeout(captureFullPage, 120);
     });
     resizeObserver.observe(document.body);
 
     const renderLoop = () => {
       if (!isActive) return;
 
-      if (fullPageCanvasRef.current) {
-        const ctx = viewportCanvasRef.current.getContext('2d', { alpha: false });
+      const vw = Math.max(1, Math.floor(window.innerWidth * scale));
+      const vh = Math.max(1, Math.floor(window.innerHeight * scale));
 
-        const vw = window.innerWidth * scale;
-        const vh = window.innerHeight * scale;
+      if (viewportCanvasRef.current.width !== vw || viewportCanvasRef.current.height !== vh) {
+        viewportCanvasRef.current.width = vw;
+        viewportCanvasRef.current.height = vh;
+      }
 
-        if (viewportCanvasRef.current.width !== vw || viewportCanvasRef.current.height !== vh) {
-          viewportCanvasRef.current.width = vw;
-          viewportCanvasRef.current.height = vh;
-        }
-
-        const sy = window.scrollY * scale;
-        const sx = window.scrollX * scale;
-
-        // ถมสีพื้นหลังไว้ก่อน (สีเดียวกับพื้นหลังเว็บ) 
-        // ช่วยแก้ปัญหา "Render ไม่ทัน" ตอนเลื่อนจอลงเร็วๆ แล้วหลุดขอบภาพที่แคปไว้
-        ctx.fillStyle = "#f4f6f8";
+      const ctx = viewportCanvasRef.current.getContext('2d', { alpha: false });
+      if (ctx) {
+        // ถมสีพื้นหลังไว้ก่อนเสมอ (ดึงจาก currentBgColorRef)
+        // ช่วยแก้ปัญหา "กล่องดำ" ระหว่างรอ Render และตอนเลื่อนจอลงเร็วๆ
+        ctx.fillStyle = currentBgColorRef.current || "#f4f6f8";
         ctx.fillRect(0, 0, vw, vh);
 
-        ctx.drawImage(
-          fullPageCanvasRef.current,
-          sx, sy, vw, vh,
-          0, 0, vw, vh
-        );
+        if (
+          fullPageCanvasRef.current &&
+          fullPageCanvasRef.current.width > 0 &&
+          fullPageCanvasRef.current.height > 0
+        ) {
+          const sy = Math.max(0, window.scrollY * scale);
+          const sx = Math.max(0, window.scrollX * scale);
+          const sw = Math.min(vw, Math.max(1, fullPageCanvasRef.current.width - sx));
+          const sh = Math.min(vh, Math.max(1, fullPageCanvasRef.current.height - sy));
+          try {
+            ctx.drawImage(
+              fullPageCanvasRef.current,
+              sx, sy, sw, sh,
+              0, 0, sw, sh
+            );
+          } catch (err) {
+            // ป้องกันกรณีขอบภาพไม่ตรง
+          }
+        }
       }
 
       requestAnimationFrame(renderLoop);
@@ -140,8 +220,12 @@ function Navbar() {
     return () => {
       isActive = false;
       resizeObserver.disconnect();
+      themeObserver.disconnect();
       window.removeEventListener('update-glass', handleManualUpdate);
+      window.removeEventListener('theme-change', handleManualUpdate);
       clearTimeout(resizeTimer);
+      clearTimeout(initialTimer1);
+      clearTimeout(initialTimer2);
     };
   }, [location.pathname]);
 
@@ -249,6 +333,7 @@ function Navbar() {
         borderRadius={32}
         progress={0}
         dynamicBgSource={viewportCanvasRef.current}
+        fallbackBgColor={currentBgColorRef.current}
         style={{
           width: '100%',
           height: '100%',
@@ -380,6 +465,7 @@ function Navbar() {
                     borderRadius={20}
                     progress={0}
                     dynamicBgSource={viewportCanvasRef.current}
+                    fallbackBgColor={currentBgColorRef.current}
                     style={{
                       width: '100%',
                       borderRadius: '20px',

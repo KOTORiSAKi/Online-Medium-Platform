@@ -15,6 +15,16 @@ function Home() {
       .catch(console.error);
   }, []);
 
+  // เมื่อข้อมูลสินค้าโหลดขึ้นมาบนหน้าจอแล้ว แจ้งให้ Navbar แคปเจอร์ภาพใหม่อีกครั้ง
+  useEffect(() => {
+    if (!loading && products.length > 0) {
+      const timer = setTimeout(() => {
+        window.dispatchEvent(new CustomEvent('update-glass'));
+      }, 100);
+      return () => clearTimeout(timer);
+    }
+  }, [loading, products.length]);
+
   if (loading)
     return (
       <div style={{ padding: "2rem", textAlign: "center" }}>

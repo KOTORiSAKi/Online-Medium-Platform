@@ -134,10 +134,77 @@ const vsSource = `
   }
 `;
 
+// ฟังก์ชันแปลงค่าสี CSS (เช่น rgb, rgba, hex) ให้เป็น Array [r, g, b, 255]
+function parseColorToRgba(colorStr) {
+  if (!colorStr) return null;
+  const rgbMatch = colorStr.match(/rgba?\((\d+),\s*(\d+),\s*(\d+)/);
+  if (rgbMatch) {
+    return [
+      parseInt(rgbMatch[1], 10),
+      parseInt(rgbMatch[2], 10),
+      parseInt(rgbMatch[3], 10),
+      255,
+    ];
+  }
+  if (colorStr.startsWith("#")) {
+    let hex = colorStr.slice(1);
+    if (hex.length === 3) {
+      hex = hex
+        .split("")
+        .map((c) => c + c)
+        .join("");
+    }
+    if (hex.length === 6) {
+      return [
+        parseInt(hex.substring(0, 2), 16),
+        parseInt(hex.substring(2, 4), 16),
+        parseInt(hex.substring(4, 6), 16),
+        255,
+      ];
+    }
+  }
+  try {
+    const ctx = document.createElement("canvas").getContext("2d");
+    if (ctx) {
+      ctx.fillStyle = colorStr;
+      ctx.fillRect(0, 0, 1, 1);
+      const data = ctx.getImageData(0, 0, 1, 1).data;
+      if (data && data.length >= 4) {
+        return [data[0], data[1], data[2], 255];
+      }
+    }
+  } catch (e) {}
+  return null;
+}
+
+// ฟังก์ชันดึงสีพื้นหลังปัจจุบันของหน้าเว็บ (App/Body/Document)
+function getWebBgRgba() {
+  if (typeof window === "undefined" || typeof document === "undefined") {
+    return [244, 246, 248, 255];
+  }
+  try {
+    const candidates = [
+      document.querySelector(".App"),
+      document.body,
+      document.documentElement,
+    ];
+    for (const el of candidates) {
+      if (!el) continue;
+      const bg = window.getComputedStyle(el).backgroundColor;
+      if (bg && bg !== "transparent" && bg !== "rgba(0, 0, 0, 0)") {
+        const parsed = parseColorToRgba(bg);
+        if (parsed) return parsed;
+      }
+    }
+  } catch (e) {}
+  return [244, 246, 248, 255];
+}
+
 export default function LiquidGlassCard({
   children,
   imageUrl,
-  dynamicBgSource, 
+  dynamicBgSource,
+  fallbackBgColor,
   borderRadius = 24,
   progress = 0,
   fillAxis = "x",
@@ -147,6 +214,8 @@ export default function LiquidGlassCard({
   const containerRef = useRef(null);
   const canvasRef = useRef(null);
   const requestRef = useRef(null);
+  const fallbackBgColorRef = useRef(fallbackBgColor);
+  fallbackBgColorRef.current = fallbackBgColor;
 
   const state = useRef({
     currentMouse: [-1000, -1000],
@@ -155,8 +224,8 @@ export default function LiquidGlassCard({
     pixelRatio: 1.0,
     isVisible: false,
     imageRes: [1920, 1080],
-    progress: 0, 
-    fillAxis: 0, 
+    progress: 0,
+    fillAxis: 0,
     dynamicBg: null,
     isUsingDynamic: false,
   });
@@ -207,7 +276,7 @@ export default function LiquidGlassCard({
 
     const resizeObserver = new ResizeObserver(updateSize);
     resizeObserver.observe(container);
-    updateSize(); 
+    updateSize();
 
     const intersectionObserver = new IntersectionObserver((entries) => {
       state.current.isVisible = entries[0].isIntersecting;
@@ -270,15 +339,30 @@ export default function LiquidGlassCard({
 
     container.addEventListener("mousemove", handleMouseMove);
 
-    // ✅ แก้ไขตรงนี้: เซ็ตค่า Texture ตั้งแต่แรก ไม่ต้องรอ img.onload
+    // ✅ แก้ไขตรงนี้: เซ็ตค่า Texture ตั้งแต่แรก ด้วยสีพื้นหลังเว็บ (ไม่ให้เป็นกล่องดำ)
+    const initialRgba =
+      (fallbackBgColorRef.current
+        ? parseColorToRgba(fallbackBgColorRef.current)
+        : null) || getWebBgRgba();
+
     const texture = gl.createTexture();
     gl.bindTexture(gl.TEXTURE_2D, texture);
     gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, true);
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
-    // ใส่พิกเซลใสตั้งต้น เพื่อไม่ให้ WebGL งงตอนไม่มีภาพ
-    gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, 1, 1, 0, gl.RGBA, gl.UNSIGNED_BYTE, new Uint8Array([0,0,0,0]));
+    // ใส่สีพื้นหลังตั้งต้น เพื่อให้เวลารอ Render ได้สีเดียวกับ Background ของเว็บ
+    gl.texImage2D(
+      gl.TEXTURE_2D,
+      0,
+      gl.RGBA,
+      1,
+      1,
+      0,
+      gl.RGBA,
+      gl.UNSIGNED_BYTE,
+      new Uint8Array(initialRgba),
+    );
 
     if (imageUrl) {
       const img = new Image();
@@ -288,7 +372,14 @@ export default function LiquidGlassCard({
         if (!isActive) return;
         state.current.imageRes = [img.naturalWidth, img.naturalHeight];
         gl.bindTexture(gl.TEXTURE_2D, texture);
-        gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, img);
+        gl.texImage2D(
+          gl.TEXTURE_2D,
+          0,
+          gl.RGBA,
+          gl.RGBA,
+          gl.UNSIGNED_BYTE,
+          img,
+        );
       };
     }
 
@@ -322,7 +413,14 @@ export default function LiquidGlassCard({
         // ดึงภาพจาก HTML2Canvas มาใส่ใน WebGL
         if (s.dynamicBg && s.dynamicBg.width > 0 && s.dynamicBg.height > 0) {
           gl.bindTexture(gl.TEXTURE_2D, texture);
-          gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, s.dynamicBg);
+          gl.texImage2D(
+            gl.TEXTURE_2D,
+            0,
+            gl.RGBA,
+            gl.RGBA,
+            gl.UNSIGNED_BYTE,
+            s.dynamicBg,
+          );
           s.imageRes = [s.dynamicBg.width, s.dynamicBg.height];
           s.isUsingDynamic = true;
         }
@@ -357,7 +455,7 @@ export default function LiquidGlassCard({
         gl.uniform1f(uniforms.borderRadius, borderRadius * pr);
         gl.uniform1f(uniforms.progress, s.progress);
         gl.uniform1f(uniforms.time, currentTime);
-        gl.uniform1f(uniforms.fillAxis, s.fillAxis); 
+        gl.uniform1f(uniforms.fillAxis, s.fillAxis);
 
         gl.activeTexture(gl.TEXTURE0);
         gl.bindTexture(gl.TEXTURE_2D, texture);
@@ -391,7 +489,7 @@ export default function LiquidGlassCard({
         }
       }
     };
-  }, [imageUrl, borderRadius, dynamicBgSource]); 
+  }, [imageUrl, borderRadius, dynamicBgSource]);
   // ↑ อัปเดต Dependencies เพื่อดักจับตอนส่งภาพแคปหน้าจอมาใหม่
 
   return (
