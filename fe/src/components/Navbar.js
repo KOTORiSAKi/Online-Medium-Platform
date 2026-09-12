@@ -1,15 +1,57 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Link, NavLink, useLocation, useNavigate } from 'react-router-dom';
+import { Link, NavLink, useLocation, useNavigate, useSearchParams } from 'react-router-dom';
 import LiquidGlassCard from '../LiquidGlassCard';
 import html2canvas from 'html2canvas';
 
 function Navbar() {
-  const [bgCanvas, setBgCanvas] = useState(null);
-  const [user, setUser] = useState(null);
-  const location = useLocation();
-  const navigate = useNavigate();
+  const fullPageCanvasRef = useRef(null);
+  const viewportCanvasRef = useRef(document.createElement('canvas'));
   const isCapturing = useRef(false);
+  const location = useLocation(); // ไว้ดักจับเวลาเปลี่ยนหน้าเว็บ (Routing)
+  const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const searchContainerRef = useRef(null);
 
+  const [user, setUser] = useState(null);
+
+  // ตรวจสอบว่าอยู่หน้า Home หรือไม่
+  const isHomePage = location.pathname === '/';
+
+  // สเตทสำหรับระบบค้นหา
+  const queryParam = searchParams.get('q') || '';
+  const [searchText, setSearchText] = useState(queryParam);
+  const [isFocused, setIsFocused] = useState(false);
+  const [allProducts, setAllProducts] = useState([]);
+
+  // ซิงก์ค่าช่องค้นหากับ URL query param
+  useEffect(() => {
+    setSearchText(queryParam);
+  }, [queryParam]);
+
+  // ดึงรายการสินค้าทั้งหมดมาเตรียมไว้สำหรับ Suggest Box เมื่ออยู่หน้า Home
+  useEffect(() => {
+    if (isHomePage) {
+      fetch("http://localhost:5000/api/products")
+        .then((res) => res.json())
+        .then((data) => {
+          if (Array.isArray(data)) setAllProducts(data);
+        })
+        .catch(console.error);
+    }
+  }, [isHomePage]);
+
+  // ดักจับการคลิกนอกพื้นที่ Suggest Box เพื่อปิด Suggestion
+  useEffect(() => {
+    const handleClickOutside = (e) => {
+      if (searchContainerRef.current && !searchContainerRef.current.contains(e.target)) {
+        setIsFocused(false);
+      }
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
+
+  // ดักจับการเข้าสู่ระบบของผู้ใช้
   useEffect(() => {
     try {
       const storedUser = localStorage.getItem('user');
@@ -19,56 +61,164 @@ function Navbar() {
     }
   }, [location]);
 
+  // Logic Liquid Glass: แคปทั้งหน้าและคัดลอกส่วน Viewport มาเรนเดอร์ใน Shader
+  useEffect(() => {
+    let isActive = true;
+    let resizeTimer;
+    const scale = 0.5;
+
+    const captureFullPage = async () => {
+      if (isCapturing.current) return;
+      isCapturing.current = true;
+      try {
+        const canvas = await html2canvas(document.body, {
+          useCORS: true,
+          scale: scale,
+          logging: false,
+        });
+        if (isActive) {
+          fullPageCanvasRef.current = canvas;
+        }
+      } catch (err) {
+        console.error("Full page capture failed", err);
+      } finally {
+        isCapturing.current = false;
+      }
+    };
+
+    // แคปทันทีที่โหลด หรือเมื่อเปลี่ยนหน้าเว็บผ่าน React Router
+    captureFullPage();
+
+    // ดักจับ Event พิเศษที่ส่งมาจากหน้าอื่นๆ (เช่น กดเปิด Modal, โหลดสินค้าใหม่เสร็จ)
+    const handleManualUpdate = () => {
+      clearTimeout(resizeTimer);
+      captureFullPage();
+    };
+    window.addEventListener('update-glass', handleManualUpdate);
+
+    const resizeObserver = new ResizeObserver(() => {
+      clearTimeout(resizeTimer);
+      // ลดเวลาหน่วงลงเหลือ 150ms เพื่อให้แคปตามได้ไวขึ้นเมื่อหน้าเว็บยืดออก
+      resizeTimer = setTimeout(captureFullPage, 150);
+    });
+    resizeObserver.observe(document.body);
+
+    const renderLoop = () => {
+      if (!isActive) return;
+
+      if (fullPageCanvasRef.current) {
+        const ctx = viewportCanvasRef.current.getContext('2d', { alpha: false });
+
+        const vw = window.innerWidth * scale;
+        const vh = window.innerHeight * scale;
+
+        if (viewportCanvasRef.current.width !== vw || viewportCanvasRef.current.height !== vh) {
+          viewportCanvasRef.current.width = vw;
+          viewportCanvasRef.current.height = vh;
+        }
+
+        const sy = window.scrollY * scale;
+        const sx = window.scrollX * scale;
+
+        // ถมสีพื้นหลังไว้ก่อน (สีเดียวกับพื้นหลังเว็บ) 
+        // ช่วยแก้ปัญหา "Render ไม่ทัน" ตอนเลื่อนจอลงเร็วๆ แล้วหลุดขอบภาพที่แคปไว้
+        ctx.fillStyle = "#f4f6f8";
+        ctx.fillRect(0, 0, vw, vh);
+
+        ctx.drawImage(
+          fullPageCanvasRef.current,
+          sx, sy, vw, vh,
+          0, 0, vw, vh
+        );
+      }
+
+      requestAnimationFrame(renderLoop);
+    };
+
+    renderLoop();
+
+    return () => {
+      isActive = false;
+      resizeObserver.disconnect();
+      window.removeEventListener('update-glass', handleManualUpdate);
+      clearTimeout(resizeTimer);
+    };
+  }, [location.pathname]);
+
   const handleLogout = () => {
     localStorage.removeItem('user');
     setUser(null);
     navigate('/login');
   };
 
-  // ระบบแคปหน้าจอรัวๆ (Stress Test Loop)
-  useEffect(() => {
-    let isActive = true;
+  // ฟังก์ชันการค้นหา
+  const handleSearchChange = (val) => {
+    setSearchText(val);
+    if (val.trim()) {
+      setSearchParams({ q: val }, { replace: true });
+    } else {
+      setSearchParams({}, { replace: true });
+    }
+  };
 
-    const captureLoop = async () => {
-      if (!isActive) return;
+  const handleClearSearch = () => {
+    setSearchText('');
+    setSearchParams({}, { replace: true });
+    setIsFocused(false);
+  };
 
-      // ถ้ายังแคปรูปเก่าไม่เสร็จ ให้รอรอบถัดไป (ป้องกันคิวล้นจนเบราว์เซอร์ค้าง)
-      if (isCapturing.current) {
-        requestAnimationFrame(captureLoop);
-        return;
-      }
+  const handleSearchSubmit = (e) => {
+    if (e) e.preventDefault();
+    if (searchText.trim()) {
+      setSearchParams({ q: searchText.trim() }, { replace: true });
+    } else {
+      setSearchParams({}, { replace: true });
+    }
+    setIsFocused(false);
+  };
 
-      isCapturing.current = true;
-      try {
-        // สั่งแคปหน้าจอเฉพาะพื้นที่ที่ผู้ใช้มองเห็นอยู่ ณ ปัจจุบัน (Viewport)
-        const canvas = await html2canvas(document.body, {
-          x: window.scrollX,
-          y: window.scrollY,
-          width: window.innerWidth,
-          height: window.innerHeight,
-          useCORS: true, // อนุญาตให้ดึงรูปภาพจากเว็บอื่นได้ (ถ้าตั้งค่า Server ไว้)
-          scale: 0.5, // ** ลองเปลี่ยนเป็น 0.5 ถ้าเครื่องกระตุกจนขยับไม่ได้ เพื่อลดความละเอียดภาพ **
-          logging: false,
-        });
+  const handleSelectSuggestion = (term) => {
+    setSearchText(term);
+    setSearchParams({ q: term }, { replace: true });
+    setIsFocused(false);
+  };
 
-        if (isActive) {
-          setBgCanvas(canvas);
-        }
-      } catch (error) {
-        console.error("Capture failed:", error);
-      } finally {
-        isCapturing.current = false;
-        // วนลูปเรียกตัวเองแคปเฟรมต่อไปทันทีแบบไม่หยุดพัก!
-        requestAnimationFrame(captureLoop);
-      }
-    };
+  const handleSelectProduct = (productId) => {
+    setIsFocused(false);
+    navigate(`/product/${productId}`);
+  };
 
-    captureLoop(); // เริ่มรันลูป
+  // ประมวลผล Suggestions จากชื่อสินค้า, Type, และชื่อร้านค้า
+  const trimmed = searchText.trim().toLowerCase();
 
-    return () => {
-      isActive = false; // เคลียร์ลูปเมื่อสลับหน้าเว็บ
-    };
-  }, []);
+  const matchedCategories = trimmed
+    ? Array.from(
+      new Set(
+        allProducts
+          .filter((p) => p.TYPE && p.TYPE.toLowerCase().includes(trimmed))
+          .map((p) => p.TYPE)
+      )
+    )
+    : [];
+
+  const matchedStores = trimmed
+    ? Array.from(
+      new Set(
+        allProducts
+          .filter((p) => p.ST_NAME && p.ST_NAME.toLowerCase().includes(trimmed))
+          .map((p) => p.ST_NAME)
+      )
+    )
+    : [];
+
+  const matchedProducts = trimmed
+    ? allProducts.filter(
+      (p) =>
+        (p.PRODUCT_NAME && p.PRODUCT_NAME.toLowerCase().includes(trimmed)) ||
+        (p.TYPE && p.TYPE.toLowerCase().includes(trimmed)) ||
+        (p.ST_NAME && p.ST_NAME.toLowerCase().includes(trimmed))
+    )
+    : [];
 
   const linkStyle = ({ isActive }) => ({
     textDecoration: 'none',
@@ -82,40 +232,476 @@ function Navbar() {
 
   return (
     <div
-      // ใส่ attribute นี้เพื่อให้ html2canvas ข้ามการแคปตัว Navbar เอง (กันภาพซ้อน)
       data-html2canvas-ignore="true"
       style={{
         position: 'fixed',
         top: '1.5rem',
         left: '50%',
         transform: 'translateX(-50%)',
-        width: '90%',
-        maxWidth: '900px',
+        width: '92%',
+        maxWidth: isHomePage ? '1040px' : '900px',
         height: '64px',
         zIndex: 1000,
+        transition: 'max-width 0.3s ease',
       }}
     >
       <LiquidGlassCard
         borderRadius={32}
         progress={0}
-        dynamicBgSource={bgCanvas} // โยน Canvas ที่แคปสดๆ ร้อนๆ เข้าไปใน Shader
-        style={{ width: '100%', height: '100%', borderRadius: '32px', boxShadow: '0 10px 25px rgba(0,0,0,0.15)' }}
-      >
-        <div style={{
-          display: 'flex',
-          justifyContent: 'space-between',
-          alignItems: 'center',
-          padding: '0 1rem 0 1.5rem',
+        dynamicBgSource={viewportCanvasRef.current}
+        style={{
+          width: '100%',
           height: '100%',
-        }}>
-          <Link to="/" style={{ fontSize: '1.25rem', fontWeight: 'bold', textDecoration: 'none', color: '#000000', marginRight: '1rem' }}>
-            🛍️ Mixiao Store
+          borderRadius: '32px',
+          boxShadow: '0 10px 25px rgba(0,0,0,0.15)',
+        }}
+      >
+        <div
+          style={{
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center',
+            padding: '0 1rem 0 1.5rem',
+            height: '100%',
+            gap: '1rem',
+          }}
+        >
+          {/* โลโก้ */}
+          <Link
+            to="/"
+            onClick={() => {
+              if (isHomePage) setSearchParams({});
+            }}
+            style={{
+              fontSize: '1.25rem',
+              fontWeight: 'bold',
+              textDecoration: 'none',
+              color: '#000000',
+              marginRight: '0.5rem',
+              whiteSpace: 'nowrap',
+              flexShrink: 0,
+            }}
+          >
+            🛍️ OnlinePlatform
           </Link>
 
-          <div style={{ display: 'flex', gap: '0.25rem', alignItems: 'center' }}>
-            <NavLink to="/" style={linkStyle}>หน้าแรก</NavLink>
-            <NavLink to="/market" style={linkStyle}>ตะกร้า</NavLink>
-            <NavLink to="/profile" style={linkStyle}>โปรไฟล์</NavLink>
+          {/* กล่อง Search Engine: แสดงเฉพาะเมื่ออยู่หน้า Home */}
+          {isHomePage && (
+            <div
+              ref={searchContainerRef}
+              style={{
+                position: 'relative',
+                flex: 1,
+                maxWidth: '400px',
+              }}
+            >
+              <form
+                onSubmit={handleSearchSubmit}
+                style={{
+                  position: 'relative',
+                  width: '100%',
+                  display: 'flex',
+                  alignItems: 'center',
+                }}
+              >
+                <span
+                  style={{
+                    position: 'absolute',
+                    left: '12px',
+                    fontSize: '0.9rem',
+                    color: '#64748b',
+                    pointerEvents: 'none',
+                  }}
+                >
+                  🔍
+                </span>
+                <input
+                  type="text"
+                  placeholder="ค้นหาชื่อสินค้า, หมวดหมู่, ร้านค้า..."
+                  value={searchText}
+                  onChange={(e) => handleSearchChange(e.target.value)}
+                  onFocus={() => setIsFocused(true)}
+                  style={{
+                    width: '100%',
+                    padding: '0.5rem 2.2rem 0.5rem 2.3rem',
+                    borderRadius: '9999px',
+                    border: isFocused
+                      ? '1.5px solid #2563eb'
+                      : '1px solid rgba(0, 0, 0, 0.12)',
+                    backgroundColor: 'rgba(255, 255, 255, 0.55)',
+                    backdropFilter: 'blur(8px)',
+                    fontSize: '0.85rem',
+                    outline: 'none',
+                    transition: 'all 0.2s ease',
+                    boxShadow: isFocused
+                      ? '0 0 0 3px rgba(37, 99, 235, 0.15)'
+                      : '0 1px 3px rgba(0, 0, 0, 0.04)',
+                    color: '#0f172a',
+                    boxSizing: 'border-box',
+                  }}
+                />
+                {searchText && (
+                  <button
+                    type="button"
+                    onClick={handleClearSearch}
+                    style={{
+                      position: 'absolute',
+                      right: '10px',
+                      background: 'none',
+                      border: 'none',
+                      color: '#64748b',
+                      cursor: 'pointer',
+                      fontSize: '0.85rem',
+                      padding: '2px 6px',
+                      borderRadius: '50%',
+                    }}
+                    title="ล้างคำค้นหา"
+                  >
+                    ✕
+                  </button>
+                )}
+              </form>
+
+              {/* Suggest Box ใช้ LiquidGlassCard ร่วมกับ viewportCanvasRef ของ Navbar */}
+              {isFocused && searchText.trim().length > 0 && (
+                <div
+                  style={{
+                    position: 'absolute',
+                    top: 'calc(100% + 12px)',
+                    left: '50%',
+                    transform: 'translateX(-50%)',
+                    width: '100%',
+                    minWidth: '380px',
+                    maxWidth: '460px',
+                    zIndex: 1001,
+                  }}
+                >
+                  <LiquidGlassCard
+                    borderRadius={20}
+                    progress={0}
+                    dynamicBgSource={viewportCanvasRef.current}
+                    style={{
+                      width: '100%',
+                      borderRadius: '20px',
+                      boxShadow: '0 20px 40px rgba(0, 0, 0, 0.2)',
+                      border: '1px solid rgba(255, 255, 255, 0.5)',
+                      overflow: 'hidden',
+                    }}
+                  >
+                    <div
+                      style={{
+                        padding: '0.85rem',
+                        maxHeight: '380px',
+                        overflowY: 'auto',
+                        color: '#1e293b',
+                      }}
+                    >
+                      {/* 1. แสดงหมวดหมู่สินค้าที่ตรงกัน */}
+                      {matchedCategories.length > 0 && (
+                        <div style={{ marginBottom: '0.75rem' }}>
+                          <div
+                            style={{
+                              fontSize: '0.75rem',
+                              fontWeight: 'bold',
+                              color: '#64748b',
+                              marginBottom: '0.35rem',
+                              paddingLeft: '0.4rem',
+                            }}
+                          >
+                            🏷️ หมวดหมู่สินค้า
+                          </div>
+                          {matchedCategories.map((cat) => (
+                            <div
+                              key={cat}
+                              onClick={() => handleSelectSuggestion(cat)}
+                              style={{
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'space-between',
+                                padding: '0.45rem 0.75rem',
+                                borderRadius: '8px',
+                                cursor: 'pointer',
+                                backgroundColor: 'rgba(255, 255, 255, 0.45)',
+                                marginBottom: '0.25rem',
+                                transition: 'all 0.15s ease',
+                              }}
+                              onMouseEnter={(e) =>
+                              (e.currentTarget.style.backgroundColor =
+                                'rgba(255, 255, 255, 0.85)')
+                              }
+                              onMouseLeave={(e) =>
+                              (e.currentTarget.style.backgroundColor =
+                                'rgba(255, 255, 255, 0.45)')
+                              }
+                            >
+                              <span
+                                style={{
+                                  fontSize: '0.85rem',
+                                  fontWeight: 'bold',
+                                  color: '#1e293b',
+                                }}
+                              >
+                                {cat}
+                              </span>
+                              <span
+                                style={{
+                                  fontSize: '0.75rem',
+                                  color: '#2563eb',
+                                  fontWeight: '500',
+                                }}
+                              >
+                                กรองหมวดหมู่นี้ →
+                              </span>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+
+                      {/* 2. แสดงชื่อร้านค้าที่ตรงกัน */}
+                      {matchedStores.length > 0 && (
+                        <div style={{ marginBottom: '0.75rem' }}>
+                          <div
+                            style={{
+                              fontSize: '0.75rem',
+                              fontWeight: 'bold',
+                              color: '#64748b',
+                              marginBottom: '0.35rem',
+                              paddingLeft: '0.4rem',
+                            }}
+                          >
+                            🏪 ร้านค้า
+                          </div>
+                          {matchedStores.map((st) => (
+                            <div
+                              key={st}
+                              onClick={() => handleSelectSuggestion(st)}
+                              style={{
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'space-between',
+                                padding: '0.45rem 0.75rem',
+                                borderRadius: '8px',
+                                cursor: 'pointer',
+                                backgroundColor: 'rgba(255, 255, 255, 0.45)',
+                                marginBottom: '0.25rem',
+                                transition: 'all 0.15s ease',
+                              }}
+                              onMouseEnter={(e) =>
+                              (e.currentTarget.style.backgroundColor =
+                                'rgba(255, 255, 255, 0.85)')
+                              }
+                              onMouseLeave={(e) =>
+                              (e.currentTarget.style.backgroundColor =
+                                'rgba(255, 255, 255, 0.45)')
+                              }
+                            >
+                              <span
+                                style={{
+                                  fontSize: '0.85rem',
+                                  fontWeight: 'bold',
+                                  color: '#1e293b',
+                                }}
+                              >
+                                {st}
+                              </span>
+                              <span
+                                style={{
+                                  fontSize: '0.75rem',
+                                  color: '#059669',
+                                  fontWeight: '500',
+                                }}
+                              >
+                                กรองร้านค้านี้ →
+                              </span>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+
+                      {/* 3. แสดงสินค้าที่ตรงกัน */}
+                      {matchedProducts.length > 0 && (
+                        <div style={{ marginBottom: '0.5rem' }}>
+                          <div
+                            style={{
+                              fontSize: '0.75rem',
+                              fontWeight: 'bold',
+                              color: '#64748b',
+                              marginBottom: '0.35rem',
+                              paddingLeft: '0.4rem',
+                            }}
+                          >
+                            📦 สินค้าที่ตรงกัน ({matchedProducts.length} ชิ้น)
+                          </div>
+                          {matchedProducts.slice(0, 5).map((item) => (
+                            <div
+                              key={item.PRODUCT_ID}
+                              onClick={() => handleSelectProduct(item.PRODUCT_ID)}
+                              style={{
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: '0.7rem',
+                                padding: '0.45rem 0.6rem',
+                                borderRadius: '10px',
+                                cursor: 'pointer',
+                                backgroundColor: 'rgba(255, 255, 255, 0.45)',
+                                marginBottom: '0.3rem',
+                                transition: 'all 0.15s ease',
+                              }}
+                              onMouseEnter={(e) =>
+                              (e.currentTarget.style.backgroundColor =
+                                'rgba(255, 255, 255, 0.85)')
+                              }
+                              onMouseLeave={(e) =>
+                              (e.currentTarget.style.backgroundColor =
+                                'rgba(255, 255, 255, 0.45)')
+                              }
+                            >
+                              <img
+                                src={
+                                  item.IMAGE_URL ||
+                                  `https://placehold.co/40x40?text=${encodeURIComponent(
+                                    item.PRODUCT_NAME
+                                  )}`
+                                }
+                                alt={item.PRODUCT_NAME}
+                                style={{
+                                  width: '38px',
+                                  height: '38px',
+                                  objectFit: 'cover',
+                                  borderRadius: '6px',
+                                  flexShrink: 0,
+                                }}
+                              />
+                              <div style={{ flex: 1, minWidth: 0 }}>
+                                <div
+                                  style={{
+                                    fontSize: '0.85rem',
+                                    fontWeight: 'bold',
+                                    color: '#0f172a',
+                                    whiteSpace: 'nowrap',
+                                    overflow: 'hidden',
+                                    textOverflow: 'ellipsis',
+                                  }}
+                                >
+                                  {item.PRODUCT_NAME}
+                                </div>
+                                <div
+                                  style={{
+                                    fontSize: '0.72rem',
+                                    color: '#64748b',
+                                  }}
+                                >
+                                  {item.TYPE} • {item.ST_NAME}
+                                </div>
+                              </div>
+                              <div
+                                style={{
+                                  fontSize: '0.85rem',
+                                  fontWeight: 'bold',
+                                  color: '#059669',
+                                  flexShrink: 0,
+                                }}
+                              >
+                                ฿
+                                {item.PRODUCT_PRICE
+                                  ? item.PRODUCT_PRICE.toLocaleString()
+                                  : 0}
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+
+                      {/* 4. สรุปผลลัพธ์ หรือแจ้งเตือนเมื่อไม่พบ */}
+                      {matchedProducts.length > 0 ? (
+                        <div
+                          onClick={handleSearchSubmit}
+                          style={{
+                            marginTop: '0.5rem',
+                            padding: '0.55rem',
+                            borderRadius: '10px',
+                            textAlign: 'center',
+                            fontSize: '0.82rem',
+                            fontWeight: 'bold',
+                            color: '#1d4ed8',
+                            backgroundColor: 'rgba(37, 99, 235, 0.12)',
+                            cursor: 'pointer',
+                            transition: 'all 0.15s ease',
+                          }}
+                          onMouseEnter={(e) =>
+                          (e.currentTarget.style.backgroundColor =
+                            'rgba(37, 99, 235, 0.22)')
+                          }
+                          onMouseLeave={(e) =>
+                          (e.currentTarget.style.backgroundColor =
+                            'rgba(37, 99, 235, 0.12)')
+                          }
+                        >
+                          🔍 ดูผลลัพธ์ทั้งหมดสำหรับ "{searchText}" (
+                          {matchedProducts.length} รายการ)
+                        </div>
+                      ) : (
+                        <div
+                          style={{
+                            padding: '1.25rem 0.5rem',
+                            textAlign: 'center',
+                            color: '#64748b',
+                          }}
+                        >
+                          <div
+                            style={{
+                              fontSize: '1.6rem',
+                              marginBottom: '0.35rem',
+                            }}
+                          >
+                            🔍
+                          </div>
+                          <div
+                            style={{
+                              fontSize: '0.85rem',
+                              fontWeight: 'bold',
+                              color: '#334155',
+                            }}
+                          >
+                            ไม่พบสินค้า หมวดหมู่ หรือร้านค้าที่ตรงกับ "
+                            {searchText}"
+                          </div>
+                          <div
+                            style={{
+                              fontSize: '0.75rem',
+                              marginTop: '0.25rem',
+                            }}
+                          >
+                            ลองค้นหาด้วยคำค้นอื่น
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  </LiquidGlassCard>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* เมนูนำทางขวา */}
+          <div
+            style={{
+              display: 'flex',
+              gap: '0.25rem',
+              alignItems: 'center',
+              whiteSpace: 'nowrap',
+              flexShrink: 0,
+            }}
+          >
+            <NavLink to="/" style={linkStyle}>
+              หน้าแรก
+            </NavLink>
+            <NavLink to="/market" style={linkStyle}>
+              ตะกร้า
+            </NavLink>
+            <NavLink to="/profile" style={linkStyle}>
+              โปรไฟล์
+            </NavLink>
             {user ? (
               <button
                 onClick={handleLogout}
