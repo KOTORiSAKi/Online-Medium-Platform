@@ -108,44 +108,29 @@ function Navbar() {
       initCtx.fillRect(0, 0, vwInit, vhInit);
     }
 
-    let needsRecapture = false;
-
     const captureFullPage = async () => {
-      if (isCapturing.current) {
-        needsRecapture = true;
-        return;
-      }
+      if (isCapturing.current) return;
       isCapturing.current = true;
-      needsRecapture = false;
-
       try {
         const canvas = await html2canvas(document.body, {
           useCORS: true,
           scale: scale,
           logging: false,
         });
-        if (isActive && canvas) {
+        if (isActive) {
           fullPageCanvasRef.current = canvas;
         }
       } catch (err) {
         console.error("Full page capture failed", err);
       } finally {
         isCapturing.current = false;
-        if (needsRecapture && isActive) {
-          needsRecapture = false;
-          setTimeout(captureFullPage, 80);
-        }
       }
     };
 
-    // แคปทันทีที่โหลด
+    // แคปทันทีที่โหลด หรือเมื่อเปลี่ยนหน้าเว็บผ่าน React Router
     captureFullPage();
 
-    // แคปซ้ำอัตโนมัติเมื่อคอนเทนต์และรูปภาพในหน้าเริ่มแสดงผล
-    const initialTimer1 = setTimeout(captureFullPage, 400);
-    const initialTimer2 = setTimeout(captureFullPage, 1200);
-
-    // ดักจับ Event พิเศษที่ส่งมาจากหน้าอื่นๆ (เช่น กดเปิด Modal, โหลดสินค้าเสร็จ, หรือเปลี่ยน Theme)
+    // ดักจับ Event พิเศษที่ส่งมาจากหน้าอื่นๆ (เช่น กดเปิด Modal, โหลดสินค้าใหม่เสร็จ, หรือเปลี่ยน Theme)
     const handleManualUpdate = () => {
       updateCurrentBgColor();
       clearTimeout(resizeTimer);
@@ -154,22 +139,35 @@ function Navbar() {
     window.addEventListener('update-glass', handleManualUpdate);
     window.addEventListener('theme-change', handleManualUpdate);
 
-    // ดักจับการเปลี่ยนแปลง Theme เฉพาะบน <html> (เช่น class 'dark' หรือ data-theme เพื่อไม่ให้กระทบกับการทำงานของ html2canvas)
+    // ดักจับการเปลี่ยนแปลง Theme (เช่น การสลับคลาส dark/light หรือ style ใน html / body / .App)
     const themeObserver = new MutationObserver(() => {
       updateCurrentBgColor();
       clearTimeout(resizeTimer);
-      resizeTimer = setTimeout(captureFullPage, 80);
+      resizeTimer = setTimeout(captureFullPage, 50);
     });
 
     themeObserver.observe(document.documentElement, {
       attributes: true,
-      attributeFilter: ['class', 'data-theme'],
+      attributeFilter: ['class', 'style', 'data-theme'],
     });
+    if (document.body) {
+      themeObserver.observe(document.body, {
+        attributes: true,
+        attributeFilter: ['class', 'style', 'data-theme'],
+      });
+    }
+    const appEl = document.querySelector('.App');
+    if (appEl) {
+      themeObserver.observe(appEl, {
+        attributes: true,
+        attributeFilter: ['class', 'style', 'data-theme'],
+      });
+    }
 
     const resizeObserver = new ResizeObserver(() => {
       clearTimeout(resizeTimer);
-      // แคปเจอร์ตามเมื่อหน้าเว็บยืด-หด
-      resizeTimer = setTimeout(captureFullPage, 120);
+      // ลดเวลาหน่วงลงเหลือ 150ms เพื่อให้แคปตามได้ไวขึ้นเมื่อหน้าเว็บยืดออก
+      resizeTimer = setTimeout(captureFullPage, 150);
     });
     resizeObserver.observe(document.body);
 
@@ -187,28 +185,18 @@ function Navbar() {
       const ctx = viewportCanvasRef.current.getContext('2d', { alpha: false });
       if (ctx) {
         // ถมสีพื้นหลังไว้ก่อนเสมอ (ดึงจาก currentBgColorRef)
-        // ช่วยแก้ปัญหา "กล่องดำ" ระหว่างรอ Render และตอนเลื่อนจอลงเร็วๆ
+        // ช่วยแก้ปัญหา "กล่องดำ" ระหว่างรอ Render และตอนเลื่อนจอลงเร็วๆ แล้วหลุดขอบภาพที่แคปไว้
         ctx.fillStyle = currentBgColorRef.current || "#f4f6f8";
         ctx.fillRect(0, 0, vw, vh);
 
-        if (
-          fullPageCanvasRef.current &&
-          fullPageCanvasRef.current.width > 0 &&
-          fullPageCanvasRef.current.height > 0
-        ) {
-          const sy = Math.max(0, window.scrollY * scale);
-          const sx = Math.max(0, window.scrollX * scale);
-          const sw = Math.min(vw, Math.max(1, fullPageCanvasRef.current.width - sx));
-          const sh = Math.min(vh, Math.max(1, fullPageCanvasRef.current.height - sy));
-          try {
-            ctx.drawImage(
-              fullPageCanvasRef.current,
-              sx, sy, sw, sh,
-              0, 0, sw, sh
-            );
-          } catch (err) {
-            // ป้องกันกรณีขอบภาพไม่ตรง
-          }
+        if (fullPageCanvasRef.current) {
+          const sy = window.scrollY * scale;
+          const sx = window.scrollX * scale;
+          ctx.drawImage(
+            fullPageCanvasRef.current,
+            sx, sy, vw, vh,
+            0, 0, vw, vh
+          );
         }
       }
 
@@ -224,8 +212,6 @@ function Navbar() {
       window.removeEventListener('update-glass', handleManualUpdate);
       window.removeEventListener('theme-change', handleManualUpdate);
       clearTimeout(resizeTimer);
-      clearTimeout(initialTimer1);
-      clearTimeout(initialTimer2);
     };
   }, [location.pathname]);
 

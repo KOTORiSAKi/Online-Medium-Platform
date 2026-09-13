@@ -36,21 +36,107 @@ async function initializeDB() {
 }
 
 // =====================================
-// API 1: ดึงรายการสินค้าทั้งหมดหน้า Home
+// API 1: ดึงรายการสินค้าทั้งหมดหน้า Home (รองรับ Personalized ตามผู้ใช้แต่ละคน หรือ สุ่ม)
 // =====================================
 app.get("/api/products", async (req, res) => {
+  const { acId, shuffle } = req.query;
   let connection;
   try {
     connection = await oracledb.getConnection();
-    // JOIN ตาราง PRODUCT และ STORE ตาม ER Diagram ของคุณ
+    // JOIN ตาราง PRODUCT และ STORE
     const sql = `
       SELECT p.PRODUCT_ID, p.PRODUCT_NAME, p.PRODUCT_PRICE, p.TYPE, p.IMAGE_URL, p.STOCK,
-             s.ST_NAME, s.LOCATION, s.IS_OPEN 
+             s.ST_ID, s.ST_NAME, s.LOCATION, s.IS_OPEN, s.RATING_POINT, s.SELLING_RATE 
       FROM PRODUCT p
       JOIN STORE s ON p.ST_ID = s.ST_ID
     `;
     const result = await connection.execute(sql);
-    res.json(result.rows);
+    let items = [...result.rows];
+
+    // กรณีเลือกสุ่มลำดับสินค้า (Shuffle)
+    if (shuffle === 'true') {
+      const openItems = items.filter((it) => it.IS_OPEN === 'Y');
+      const closedItems = items.filter((it) => it.IS_OPEN !== 'Y');
+
+      const shuffleArray = (arr) => {
+        for (let i = arr.length - 1; i > 0; i--) {
+          const j = Math.floor(Math.random() * (i + 1));
+          [arr[i], arr[j]] = [arr[j], arr[i]];
+        }
+        return arr;
+      };
+
+      return res.json([...shuffleArray(openItems), ...shuffleArray(closedItems)]);
+    }
+
+    // กรณีมี acId (Personalized ตามความชอบและพฤติกรรมของผู้ใช้แต่ละคน)
+    if (acId) {
+      // 1. ดึงสถิติประเภทสินค้าที่ผู้ใช้คนนี้เคยซื้อหรือหยิบใส่ตะกร้า
+      const typeRes = await connection.execute(
+        `SELECT p.TYPE, COUNT(*) AS CNT
+         FROM ORDER_DETAIL od
+         JOIN ORDERS o ON od.ORDER_ID = o.ORDER_ID
+         JOIN PRODUCT p ON od.PRODUCT_ID = p.PRODUCT_ID
+         WHERE o.AC_ID = :1
+         GROUP BY p.TYPE`,
+        [acId]
+      );
+      const typePref = {};
+      for (const r of typeRes.rows) {
+        typePref[r.TYPE] = Number(r.CNT);
+      }
+
+      // 2. ดึงสถิติร้านค้าที่ผู้ใช้คนนี้เคยสั่งซื้อ
+      const storeRes = await connection.execute(
+        `SELECT o.ST_ID, COUNT(*) AS STORE_CNT
+         FROM ORDERS o
+         WHERE o.AC_ID = :1
+         GROUP BY o.ST_ID`,
+        [acId]
+      );
+      const storePref = {};
+      for (const r of storeRes.rows) {
+        storePref[r.ST_ID] = Number(r.STORE_CNT);
+      }
+
+      // 3. ให้คะแนนสินค้าแต่ละชิ้น (Scoring Algorithm)
+      const scored = items.map((p) => {
+        let score = 0;
+
+        // ร้านที่เปิดให้บริการ ได้คะแนนนำเสมอ
+        if (p.IS_OPEN === 'Y') score += 100000;
+
+        // ความชอบตามประเภทสินค้าที่เคยซื้อบ่อย
+        const typeCnt = typePref[p.TYPE] || 0;
+        score += typeCnt * 2000;
+
+        // ความชอบตามร้านค้าที่เคยสั่งบ่อย
+        const storeCnt = storePref[p.ST_ID] || 0;
+        score += storeCnt * 1000;
+
+        // คะแนนเรตติ้งของร้านค้า
+        score += (Number(p.RATING_POINT) || 0) * 50;
+
+        // Personalized Hash: สร้างความหลากหลายเฉพาะตัวสำหรับผู้ใช้แต่ละคน (อิงตาม acId และ product_id)
+        // เพื่อให้ผู้ใช้แต่ละคนเห็นลำดับไม่ซ้ำกันแม้จะยังไม่มีประวัติการซื้อ (Cold-start Personalization)
+        const pseudoRandom = Math.abs(Math.sin(Number(acId) * 137 + Number(p.PRODUCT_ID) * 79)) * 500;
+        score += pseudoRandom;
+
+        return { ...p, _score: score };
+      });
+
+      scored.sort((a, b) => b._score - a._score);
+      return res.json(scored);
+    }
+
+    // กรณีไม่ได้ Login: เรียงร้านเปิดก่อน ตามด้วย Rating
+    items.sort((a, b) => {
+      if (a.IS_OPEN === 'Y' && b.IS_OPEN !== 'Y') return -1;
+      if (a.IS_OPEN !== 'Y' && b.IS_OPEN === 'Y') return 1;
+      return (Number(b.RATING_POINT) || 0) - (Number(a.RATING_POINT) || 0);
+    });
+
+    res.json(items);
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: err.message });

@@ -214,8 +214,6 @@ export default function LiquidGlassCard({
   const containerRef = useRef(null);
   const canvasRef = useRef(null);
   const requestRef = useRef(null);
-  const fallbackBgColorRef = useRef(fallbackBgColor);
-  fallbackBgColorRef.current = fallbackBgColor;
 
   const state = useRef({
     currentMouse: [-1000, -1000],
@@ -341,9 +339,8 @@ export default function LiquidGlassCard({
 
     // ✅ แก้ไขตรงนี้: เซ็ตค่า Texture ตั้งแต่แรก ด้วยสีพื้นหลังเว็บ (ไม่ให้เป็นกล่องดำ)
     const initialRgba =
-      (fallbackBgColorRef.current
-        ? parseColorToRgba(fallbackBgColorRef.current)
-        : null) || getWebBgRgba();
+      (fallbackBgColor ? parseColorToRgba(fallbackBgColor) : null) ||
+      getWebBgRgba();
 
     const texture = gl.createTexture();
     gl.bindTexture(gl.TEXTURE_2D, texture);
@@ -489,8 +486,8 @@ export default function LiquidGlassCard({
         }
       }
     };
-  }, [imageUrl, borderRadius, dynamicBgSource]);
-  // ↑ อัปเดต Dependencies เพื่อดักจับตอนส่งภาพแคปหน้าจอมาใหม่
+  }, [imageUrl, borderRadius, dynamicBgSource, fallbackBgColor]);
+  // ↑ อัปเดต Dependencies เพื่อดักจับตอนส่งภาพแคปหน้าจอมาใหม่ หรือเมื่อสีพื้นหลังเปลี่ยน
 
   return (
     <div
