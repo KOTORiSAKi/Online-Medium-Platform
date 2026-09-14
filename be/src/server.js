@@ -355,7 +355,7 @@ app.post("/api/cart/add", async (req, res) => {
       orderId = newIdRes.rows[0].NEW_ID;
       await connection.execute(
         `INSERT INTO ORDERS (ORDER_ID, AC_ID, ST_ID, ORDER_DATE, STATUS, TOTAL_PRICE) 
-         VALUES (:1, :2, :3, SYSDATE, 'Cart', 0)`,
+         VALUES (:1, :2, :3, NULL, 'Cart', 0)`,
         [orderId, acId, stId],
       );
     } else {
@@ -604,8 +604,8 @@ app.post('/api/cart/checkout', async (req, res) => {
           await connection.execute(
             `UPDATE ORDERS 
              SET STATUS = 'Pending', 
-                 ORDER_DATE = SYSDATE,
-                 EST_DELIVERY_DATE = SYSDATE + (:1 / (24 * 60 * 60)),
+                 ORDER_DATE = CURRENT_TIMESTAMP,
+                 EST_DELIVERY_DATE = CURRENT_DATE + (:1 / (24 * 60 * 60)),
                  PRICE_ID = :2,
                  SUM_WEIGHT = :3,
                  SUM_SIZE = :4,
@@ -629,8 +629,8 @@ app.post('/api/cart/checkout', async (req, res) => {
                 EST_DELIVERY_DATE,
                 PRICE_ID, SUM_WEIGHT, SUM_SIZE, DV_PRICE, ALL_PRODUCT_PRICE, 
                 TOTAL_PRICE, DEST_ADDRESS_ID, PAYMENT_METHOD, PAYMENT_STATUS, SHIPPING_PROVIDER_ID)
-             VALUES (:1, :2, :3, SYSDATE, 'Pending', 
-                SYSDATE + (:4 / (24 * 60 * 60)),
+             VALUES (:1, :2, :3, CURRENT_TIMESTAMP, 'Pending', 
+                CURRENT_DATE + (:4 / (24 * 60 * 60)),
                 :5, :6, :7, :8, :9, 
                 :10, :11, :12, 'Pending', :13)`,
             [finalOrderId, orderInfo.acId, orderInfo.stId, delaySec,
@@ -1772,12 +1772,13 @@ app.get('/api/orders', async (req, res) => {
   let connection;
   try {
     connection = await oracledb.getConnection();
-    
-    // Check and auto-update Pending -> Delivered if EST_DELIVERY_DATE is reached
+
+    // Check and auto-update Pending -> Delivered if EST_DELIVERY_DATE is reached (or if EST_DELIVERY_DATE is null from old orders)
     await connection.execute(
       `UPDATE ORDERS 
-       SET STATUS = 'Delivered' 
-       WHERE AC_ID = :1 AND STATUS = 'Pending' AND SYSDATE >= EST_DELIVERY_DATE`,
+       SET STATUS = 'Delivered',
+           EST_DELIVERY_DATE = NVL(EST_DELIVERY_DATE, CURRENT_DATE)
+       WHERE AC_ID = :1 AND STATUS = 'Pending' AND (EST_DELIVERY_DATE IS NULL OR CURRENT_DATE >= EST_DELIVERY_DATE)`,
       [acId]
     );
 
@@ -1789,7 +1790,7 @@ app.get('/api/orders', async (req, res) => {
        ORDER BY o.ORDER_DATE DESC`,
       [acId]
     );
-    
+
     // Fetch details for each order
     const orders = result.rows;
     for (let o of orders) {
@@ -1802,12 +1803,12 @@ app.get('/api/orders', async (req, res) => {
       );
       o.items = dtRes.rows;
     }
-    
+
     res.json(orders);
   } catch (err) {
     res.status(500).json({ error: err.message });
   } finally {
-    if (connection) { try { await connection.close(); } catch (e) {} }
+    if (connection) { try { await connection.close(); } catch (e) { } }
   }
 });
 
@@ -1825,6 +1826,6 @@ app.post('/api/orders/:orderId/receive', async (req, res) => {
   } catch (err) {
     res.status(500).json({ error: err.message });
   } finally {
-    if (connection) { try { await connection.close(); } catch (e) {} }
+    if (connection) { try { await connection.close(); } catch (e) { } }
   }
 });

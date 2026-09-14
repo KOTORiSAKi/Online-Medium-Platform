@@ -998,10 +998,16 @@ function Market() {
       ) : (
         activeOrders.filter(o => o.STATUS === 'Pending' || o.STATUS === 'Delivered').map((order) => {
           const isDelivered = order.STATUS === 'Delivered';
-          const orderDate = new Date(order.ORDER_DATE).getTime();
-          const deliveryDate = new Date(order.EST_DELIVERY_DATE).getTime();
+          const orderDate = order.ORDER_DATE ? new Date(order.ORDER_DATE).getTime() : 0;
+          const deliveryDate = order.EST_DELIVERY_DATE ? new Date(order.EST_DELIVERY_DATE).getTime() : 0;
           const now = currentTime;
-          const progress = isDelivered ? 100 : Math.min(100, Math.max(0, ((now - orderDate) / (deliveryDate - orderDate)) * 100));
+
+          let progress = 0;
+          if (isDelivered || (deliveryDate > 0 && now >= deliveryDate)) {
+            progress = 100;
+          } else if (deliveryDate > orderDate && orderDate > 0) {
+            progress = Math.min(100, Math.max(0, ((now - orderDate) / (deliveryDate - orderDate)) * 100));
+          }
 
           return (
             <div key={order.ORDER_ID} style={{
@@ -1015,7 +1021,9 @@ function Market() {
               <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '1rem' }}>
                 <div>
                   <h3 style={{ margin: 0 }}>ร้าน: {order.ST_NAME} (บิล #{order.ORDER_ID})</h3>
-                  <small style={{ color: '#64748b' }}>สั่งเมื่อ: {new Date(order.ORDER_DATE).toLocaleString()}</small>
+                  <small style={{ color: '#64748b' }}>
+                    สั่งเมื่อ: {order.ORDER_DATE ? new Date(order.ORDER_DATE).toLocaleString() : 'เพิ่งสั่งซื้อ'}
+                  </small>
                 </div>
                 <div>
                   <span style={{
@@ -1036,10 +1044,10 @@ function Market() {
                 <div style={{ marginBottom: '1.5rem' }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.85rem', marginBottom: '0.5rem', color: '#64748b' }}>
                     <span>เตรียมจัดส่ง</span>
-                    <span>คาดว่าจะถึง: {new Date(order.EST_DELIVERY_DATE).toLocaleString()}</span>
+                    <span>คาดว่าจะถึง: {order.EST_DELIVERY_DATE ? new Date(order.EST_DELIVERY_DATE).toLocaleString() : 'กำลังจัดเตรียม...'}</span>
                   </div>
                   <div style={{ height: '8px', backgroundColor: '#e2e8f0', borderRadius: '4px', overflow: 'hidden' }}>
-                    <div style={{ height: '100%', backgroundColor: '#3b82f6', width: `${progress}%`, transition: 'width 1s linear' }}></div>
+                    <div style={{ height: '100%', backgroundColor: '#3b82f6', width: `${progress}%`, transition: 'width 0.5s ease' }}></div>
                   </div>
                 </div>
               )}
