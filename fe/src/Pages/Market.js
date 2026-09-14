@@ -9,45 +9,87 @@ function Market() {
   const [selectedDetailIds, setSelectedDetailIds] = useState([]);
   const [isSelectionInitialized, setIsSelectionInitialized] = useState(false);
   const [addresses, setAddresses] = useState([]);
-  const [destAddressId, setDestAddressId] = useState('');
-  const [paymentMethod, setPaymentMethod] = useState('Cash');
+  const [destAddressId, setDestAddressId] = useState("");
+  const [paymentMethod, setPaymentMethod] = useState("Cash");
+  const [activeOrders, setActiveOrders] = useState([]);
+  const [currentTime, setCurrentTime] = useState(Date.now());
+
+  const [shippingProviders, setShippingProviders] = useState({});
+  const [shippingTypes, setShippingTypes] = useState({});
+  const [shippingConfigTypes, setShippingConfigTypes] = useState([]);
+  const [shippingCosts, setShippingCosts] = useState({
+    orderShippingCosts: {},
+    totalShipping: 0,
+  });
+  const [shippingServices, setShippingServices] = useState({});
 
   // ฟังก์ชันดึงข้อมูลตะกร้าจาก DB (รวม IS_OPEN ของร้านค้า)
-  const fetchCartData = useCallback((acId) => {
-    fetch(`http://localhost:5000/api/cart/${acId}`)
+  const fetchCartData = useCallback(
+    (acId) => {
+      fetch(`http://localhost:5000/api/cart/${acId}`)
+        .then((res) => res.json())
+        .then((data) => {
+          const groups = data.reduce((acc, item) => {
+            if (!acc[item.ORDER_ID]) {
+              acc[item.ORDER_ID] = {
+                storeName: item.ST_NAME,
+                isOpen: item.IS_OPEN,
+                items: [],
+                total: 0,
+              };
+            }
+            acc[item.ORDER_ID].items.push(item);
+            acc[item.ORDER_ID].total += item.QUANTITY * item.UNIT_PRICE;
+            return acc;
+          }, {});
+          setGroupedCart(groups);
+
+          // Fetch shipping services for each store
+          Object.keys(groups).forEach((orderId) => {
+            const stId = groups[orderId].items[0].ST_ID;
+            fetch(`http://localhost:5000/api/stores/${stId}/services`)
+              .then((res) => res.json())
+              .then((services) => {
+                setShippingServices((prev) => ({
+                  ...prev,
+                  [orderId]: services,
+                }));
+                setShippingTypes((prev) => ({ ...prev, [orderId]: 1 }));
+                if (services.length > 0) {
+                  setShippingProviders((prev) => ({
+                    ...prev,
+                    [orderId]: services[0].DVSERVICE_ID,
+                  }));
+                }
+              })
+              .catch(console.error);
+          });
+
+          const openItemIds = data
+            .filter((item) => item.IS_OPEN !== "N")
+            .map((item) => item.ORDER_DETAIL_ID);
+
+          setSelectedDetailIds((prev) => {
+            if (!isSelectionInitialized) {
+              return openItemIds;
+            }
+            // กรองเอาเฉพาะรายการที่เคยเลือกไว้ และยังอยู่ในร้านที่เปิด
+            return prev.filter((id) => openItemIds.includes(id));
+          });
+          setIsSelectionInitialized(true);
+          setLoading(false);
+        })
+        .catch(console.error);
+    },
+    [isSelectionInitialized],
+  );
+
+  const fetchActiveOrders = useCallback((acId) => {
+    fetch(`http://localhost:5000/api/orders?acId=${acId}`)
       .then((res) => res.json())
-      .then((data) => {
-        const groups = data.reduce((acc, item) => {
-          if (!acc[item.ORDER_ID]) {
-            acc[item.ORDER_ID] = {
-              storeName: item.ST_NAME,
-              isOpen: item.IS_OPEN,
-              items: [],
-              total: 0,
-            };
-          }
-          acc[item.ORDER_ID].items.push(item);
-          acc[item.ORDER_ID].total += item.QUANTITY * item.UNIT_PRICE;
-          return acc;
-        }, {});
-        setGroupedCart(groups);
-
-        const openItemIds = data
-          .filter((item) => item.IS_OPEN !== "N")
-          .map((item) => item.ORDER_DETAIL_ID);
-
-        setSelectedDetailIds((prev) => {
-          if (!isSelectionInitialized) {
-            return openItemIds;
-          }
-          // กรองเอาเฉพาะรายการที่เคยเลือกไว้ และยังอยู่ในร้านที่เปิด
-          return prev.filter((id) => openItemIds.includes(id));
-        });
-        setIsSelectionInitialized(true);
-        setLoading(false);
-      })
-      .catch(console.error);
-  }, [isSelectionInitialized]);
+      .then((data) => setActiveOrders(data))
+      .catch((err) => console.error("Error fetching orders:", err));
+  }, []);
 
   useEffect(() => {
     const loggedInUser = JSON.parse(localStorage.getItem("user"));
@@ -57,17 +99,55 @@ function Market() {
     }
     setUser(loggedInUser);
     fetchCartData(loggedInUser.AC_ID);
-    
+    fetchActiveOrders(loggedInUser.AC_ID);
+
+    fetch("http://localhost:5000/api/shipping/config-prices")
+      .then((res) => res.json())
+      .then((data) => setShippingConfigTypes(data.dvServiceTypes))
+      .catch(console.error);
+
     fetch(`http://localhost:5000/api/address/${loggedInUser.AC_ID}?type=HOME`)
-      .then(res => res.json())
-      .then(data => {
+      .then((res) => res.json())
+      .then((data) => {
         setAddresses(data);
-        const def = data.find(a => a.IS_DEFAULT === 'Y');
+        const def = data.find((a) => a.IS_DEFAULT === "Y");
         if (def) setDestAddressId(def.ADDRESS_ID);
         else if (data.length > 0) setDestAddressId(data[0].ADDRESS_ID);
       })
       .catch(console.error);
-  }, [navigate, fetchCartData]);
+    const interval = setInterval(() => {
+      setCurrentTime(Date.now());
+      if (Math.floor(Date.now() / 1000) % 3 === 0) {
+        fetchActiveOrders(loggedInUser.AC_ID);
+      }
+    }, 1000);
+    return () => clearInterval(interval);
+  }, [navigate, fetchCartData, fetchActiveOrders]);
+
+  // ดึงค่าจัดส่งทุกครั้งที่มีการเปลี่ยนการติ๊กสินค้า เปลี่ยนที่อยู่ หรือเปลี่ยนขนส่ง
+  useEffect(() => {
+    if (selectedDetailIds.length === 0 || !destAddressId) {
+      setShippingCosts({ orderShippingCosts: {}, totalShipping: 0 });
+      return;
+    }
+    fetch("http://localhost:5000/api/cart/calculate-shipping", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        selectedDetailIds,
+        destAddressId,
+        shippingProviders,
+        shippingTypes,
+      }),
+    })
+      .then((res) => res.json())
+      .then((data) => {
+        if (data && data.orderShippingCosts) {
+          setShippingCosts(data);
+        }
+      })
+      .catch(console.error);
+  }, [selectedDetailIds, destAddressId, shippingProviders, shippingTypes]);
 
   // ฟังก์ชันจัดการเพิ่มลดจำนวนและลบ
   const handleUpdateQty = async (orderDetailId, currentQty, change) => {
@@ -116,12 +196,12 @@ function Market() {
     if (group.isOpen === "N") return;
     const storeItemIds = group.items.map((it) => it.ORDER_DETAIL_ID);
     const isStoreAllSelected = storeItemIds.every((id) =>
-      selectedDetailIds.includes(id)
+      selectedDetailIds.includes(id),
     );
 
     if (isStoreAllSelected) {
       setSelectedDetailIds((prev) =>
-        prev.filter((id) => !storeItemIds.includes(id))
+        prev.filter((id) => !storeItemIds.includes(id)),
       );
     } else {
       setSelectedDetailIds((prev) => {
@@ -151,12 +231,12 @@ function Market() {
   const selectedCount = selectedItems.length;
   const selectedGrandTotal = selectedItems.reduce(
     (sum, item) => sum + item.QUANTITY * item.UNIT_PRICE,
-    0
+    0,
   );
 
   // ตรวจสอบว่ามีร้านค้าไหนในตะกร้าปิดอยู่หรือไม่
   const hasClosedStoreInCart = Object.values(groupedCart).some(
-    (group) => group.isOpen === "N"
+    (group) => group.isOpen === "N",
   );
 
   const handleCheckout = async () => {
@@ -174,9 +254,13 @@ function Market() {
     }
 
     // ป้องกันกรณีที่มีสินค้าที่เลือกร้านปิดอยู่
-    const hasSelectedClosed = selectedItems.some((item) => item.IS_OPEN === "N");
+    const hasSelectedClosed = selectedItems.some(
+      (item) => item.IS_OPEN === "N",
+    );
     if (hasSelectedClosed) {
-      alert("⚠️ ไม่สามารถสั่งซื้อได้: มีสินค้าจากร้านค้าที่ปิดให้บริการอยู่ในรายการที่เลือก");
+      alert(
+        "⚠️ ไม่สามารถสั่งซื้อได้: มีสินค้าจากร้านค้าที่ปิดให้บริการอยู่ในรายการที่เลือก",
+      );
       return;
     }
 
@@ -184,19 +268,57 @@ function Market() {
       const res = await fetch("http://localhost:5000/api/cart/checkout", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ selectedDetailIds, destAddressId, paymentMethod }),
+        body: JSON.stringify({
+          selectedDetailIds,
+          destAddressId,
+          paymentMethod,
+          shippingProviders,
+          shippingTypes,
+        }),
       });
       const data = await res.json();
       if (res.ok) {
-        alert(data.message || "สั่งซื้อสำเร็จ! สถานะถูกเปลี่ยนเป็น 'รอจัดส่ง' แล้ว");
+        alert(
+          data.message || "สั่งซื้อสำเร็จ! สถานะถูกเปลี่ยนเป็น 'รอจัดส่ง' แล้ว",
+        );
         setSelectedDetailIds([]);
         fetchCartData(user.AC_ID);
-        navigate("/profile");
+        fetchActiveOrders(user.AC_ID);
+        // navigate("/profile");
       } else {
         alert(data.error || "เกิดข้อผิดพลาดในการสั่งซื้อ");
       }
     } catch (err) {
       alert("เชื่อมต่อเซิร์ฟเวอร์ไม่ได้");
+    }
+  };
+
+  const [reviewModalOpen, setReviewModalOpen] = useState(false);
+  const [reviewOrderId, setReviewOrderId] = useState(null);
+  const [reviewRating, setReviewRating] = useState(5);
+
+  const handleReceive = (orderId) => {
+    setReviewOrderId(orderId);
+    setReviewRating(5);
+    setReviewModalOpen(true);
+  };
+
+  const submitReview = async () => {
+    try {
+      const res = await fetch(`http://localhost:5000/api/orders/${reviewOrderId}/receive`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ rating: reviewRating }),
+      });
+      if (res.ok) {
+        alert("ขอบคุณสำหรับการรีวิว!");
+        setReviewModalOpen(false);
+        fetchActiveOrders(user.AC_ID);
+      } else {
+        alert("เกิดข้อผิดพลาด");
+      }
+    } catch (err) {
+      alert("Error: " + err.message);
     }
   };
 
@@ -209,50 +331,17 @@ function Market() {
 
   return (
     <div style={{ padding: "2rem", maxWidth: "900px", margin: "0 auto" }}>
-      <h1>🛒 ตะกร้าสินค้า</h1>
+      <h1>🛒 การสั่งซื้อ</h1>
       {Object.keys(groupedCart).length === 0 ? (
         <div
           style={{ textAlign: "center", padding: "3rem 0", color: "#64748b" }}
         >
-          <p>ยังไม่มีสินค้าในตะกร้า</p>
-          
-            <div style={{ marginBottom: "1rem" }}>
-              <label style={{ display: "block", fontSize: "0.85rem", fontWeight: "bold", marginBottom: "0.4rem" }}>
-                📍 เลือกที่อยู่จัดส่ง:
-              </label>
-              <select
-                value={destAddressId}
-                onChange={(e) => setDestAddressId(e.target.value)}
-                style={{ width: "100%", padding: "0.6rem", borderRadius: "6px", border: "1px solid #cbd5e1", fontSize: "0.9rem" }}
-              >
-                <option value="" disabled>-- กรุณาเลือกที่อยู่ --</option>
-                {addresses.map(a => (
-                  <option key={a.ADDRESS_ID} value={a.ADDRESS_ID}>
-                    {a.ADDRESS_LINE} {a.SUB_DISTRICT} {a.DISTRICT} {a.PROVINCE} {a.ZIP_CODE}
-                  </option>
-                ))}
-              </select>
-            </div>
-
-            <div style={{ marginBottom: "1.5rem" }}>
-              <label style={{ display: "block", fontSize: "0.85rem", fontWeight: "bold", marginBottom: "0.4rem" }}>
-                💳 เลือกช่องทางการชำระเงิน:
-              </label>
-              <select
-                value={paymentMethod}
-                onChange={(e) => setPaymentMethod(e.target.value)}
-                style={{ width: "100%", padding: "0.6rem", borderRadius: "6px", border: "1px solid #cbd5e1", fontSize: "0.9rem" }}
-              >
-                <option value="Cash">เงินสด (Cash)</option>
-                <option value="Credit Card">บัตรเครดิต (Credit Card)</option>
-                <option value="Bank Transfer">โอนเงิน (Bank Transfer)</option>
-              </select>
-            </div>
-<button
+          <p>ไม่มีสินค้าในตะกร้า</p>
+          <button
             onClick={() => navigate("/")}
-            style={{ padding: "0.5rem 1rem", cursor: "pointer" }}
+            style={{ padding: "0.5rem 1rem", cursor: "pointer", marginTop: "1rem" }}
           >
-            ไปช้อปปิ้งกันเลย!
+            เริ่มช้อปเลย!
           </button>
         </div>
       ) : (
@@ -297,11 +386,13 @@ function Market() {
                     width: "18px",
                     height: "18px",
                     accentColor: "#2563eb",
-                    cursor: allOpenItemIds.length > 0 ? "pointer" : "not-allowed",
+                    cursor:
+                      allOpenItemIds.length > 0 ? "pointer" : "not-allowed",
                   }}
                 />
                 <span>
-                  เลือกสินค้าทั้งหมด ({selectedCount} / {allOpenItemIds.length} รายการที่สั่งซื้อได้)
+                  เลือกสินค้าทั้งหมด ({selectedCount} / {allOpenItemIds.length}{" "}
+                  รายการที่สั่งซื้อได้)
                 </span>
               </label>
 
@@ -331,18 +422,20 @@ function Market() {
                 group.items.length > 0 &&
                 storeItemIds.every((id) => selectedDetailIds.includes(id));
               const storeSelectedItems = group.items.filter((it) =>
-                selectedDetailIds.includes(it.ORDER_DETAIL_ID)
+                selectedDetailIds.includes(it.ORDER_DETAIL_ID),
               );
               const storeSelectedTotal = storeSelectedItems.reduce(
                 (sum, it) => sum + it.QUANTITY * it.UNIT_PRICE,
-                0
+                0,
               );
 
               return (
                 <div
                   key={orderId}
                   style={{
-                    border: isClosed ? "2px solid #ef4444" : "1px solid #e2e8f0",
+                    border: isClosed
+                      ? "2px solid #ef4444"
+                      : "1px solid #e2e8f0",
                     marginBottom: "1.5rem",
                     borderRadius: "8px",
                     overflow: "hidden",
@@ -354,7 +447,9 @@ function Market() {
                     style={{
                       background: isClosed ? "#fee2e2" : "#f8fafc",
                       padding: "0.75rem 1rem",
-                      borderBottom: isClosed ? "1px solid #fca5a5" : "1px solid #e2e8f0",
+                      borderBottom: isClosed
+                        ? "1px solid #fca5a5"
+                        : "1px solid #e2e8f0",
                       display: "flex",
                       justifyContent: "space-between",
                       alignItems: "center",
@@ -420,9 +515,116 @@ function Market() {
                     )}
                   </div>
 
+                  {!isClosed &&
+                    shippingServices[orderId] &&
+                    shippingServices[orderId].length > 0 && (
+                      <div
+                        style={{
+                          padding: "0.6rem 1rem",
+                          borderBottom: "1px solid #e2e8f0",
+                          backgroundColor: "#f8fafc",
+                          display: "flex",
+                          flexDirection: "column",
+                          gap: "0.5rem",
+                        }}
+                      >
+                        {/* แถวที่ 1: เลือกช่องทางจัดส่ง */}
+                        <div
+                          style={{
+                            display: "flex",
+                            alignItems: "center",
+                            gap: "0.5rem",
+                          }}
+                        >
+                          <label
+                            style={{
+                              fontSize: "0.85rem",
+                              fontWeight: "bold",
+                              color: "#334155",
+                              minWidth: "120px",
+                            }}
+                          >
+                            🚚 ช่องทางจัดส่ง:
+                          </label>
+                          <select
+                            value={shippingProviders[orderId] || ""}
+                            onChange={(e) =>
+                              setShippingProviders((prev) => ({
+                                ...prev,
+                                [orderId]: e.target.value,
+                              }))
+                            }
+                            style={{
+                              padding: "0.3rem 0.5rem",
+                              borderRadius: "4px",
+                              border: "1px solid #cbd5e1",
+                              fontSize: "0.85rem",
+                              backgroundColor: "#ffffff",
+                            }}
+                          >
+                            {shippingServices[orderId]?.map((service) => (
+                              <option
+                                key={service.DVSERVICE_ID}
+                                value={service.DVSERVICE_ID}
+                              >
+                                {service.DVSERVICE_NAME}
+                              </option>
+                            ))}
+                          </select>
+                        </div>
+
+                        {/* แถวที่ 2: รูปแบบจัดส่ง */}
+                        <div
+                          style={{
+                            display: "flex",
+                            alignItems: "center",
+                            gap: "0.5rem",
+                          }}
+                        >
+                          <label
+                            style={{
+                              fontSize: "0.85rem",
+                              fontWeight: "bold",
+                              color: "#334155",
+                              minWidth: "120px",
+                            }}
+                          >
+                            📦 รูปแบบจัดส่ง:
+                          </label>
+                          <select
+                            value={shippingTypes[orderId] || 1}
+                            onChange={(e) =>
+                              setShippingTypes((prev) => ({
+                                ...prev,
+                                [orderId]: e.target.value,
+                              }))
+                            }
+                            style={{
+                              padding: "0.3rem 0.5rem",
+                              borderRadius: "4px",
+                              border: "1px solid #cbd5e1",
+                              fontSize: "0.85rem",
+                              backgroundColor: "#ffffff",
+                            }}
+                          >
+                            {shippingConfigTypes.map((type) => (
+                              <option
+                                key={type.DVSERVICE_TYPE_ID}
+                                value={type.DVSERVICE_TYPE_ID}
+                              >
+                                {type.TYPE_NAME}
+                              </option>
+                            ))}
+                          </select>
+                        </div>
+                      </div>
+                    )}
+
                   {/* สินค้าในร้านนั้น */}
                   {group.items.map((item) => {
-                    const isChecked = selectedDetailIds.includes(item.ORDER_DETAIL_ID);
+                    const isChecked = selectedDetailIds.includes(
+                      item.ORDER_DETAIL_ID,
+                    );
                     return (
                       <div
                         key={item.ORDER_DETAIL_ID}
@@ -432,7 +634,8 @@ function Market() {
                           gap: "1rem",
                           borderBottom: "1px solid #f1f5f9",
                           alignItems: "center",
-                          backgroundColor: isChecked && !isClosed ? "#f0f9ff" : "transparent",
+                          backgroundColor:
+                            isChecked && !isClosed ? "#f0f9ff" : "transparent",
                           transition: "background-color 0.2s ease",
                         }}
                       >
@@ -441,7 +644,9 @@ function Market() {
                           type="checkbox"
                           checked={isChecked}
                           disabled={isClosed}
-                          onChange={() => toggleItemSelection(item.ORDER_DETAIL_ID, !isClosed)}
+                          onChange={() =>
+                            toggleItemSelection(item.ORDER_DETAIL_ID, !isClosed)
+                          }
                           style={{
                             width: "20px",
                             height: "20px",
@@ -449,7 +654,11 @@ function Market() {
                             cursor: isClosed ? "not-allowed" : "pointer",
                             flexShrink: 0,
                           }}
-                          title={isClosed ? "ร้านนี้ปิดให้บริการชั่วคราว" : "เลือกสินค้านี้เพื่อสั่งซื้อ"}
+                          title={
+                            isClosed
+                              ? "ร้านนี้ปิดให้บริการชั่วคราว"
+                              : "เลือกสินค้านี้เพื่อสั่งซื้อ"
+                          }
                         />
 
                         <img
@@ -491,7 +700,7 @@ function Market() {
                               style={{
                                 display: "flex",
                                 alignItems: "center",
-                                border: "1px solid #cbd5e0",
+                                border: "2px solid #cbd5e0",
                                 borderRadius: "4px",
                                 backgroundColor: "#fff",
                               }}
@@ -501,7 +710,7 @@ function Market() {
                                   handleUpdateQty(
                                     item.ORDER_DETAIL_ID,
                                     item.QUANTITY,
-                                    -1
+                                    -1,
                                   )
                                 }
                                 style={{
@@ -526,7 +735,7 @@ function Market() {
                                   handleUpdateQty(
                                     item.ORDER_DETAIL_ID,
                                     item.QUANTITY,
-                                    1
+                                    1,
                                   )
                                 }
                                 style={{
@@ -544,7 +753,7 @@ function Market() {
                                 handleUpdateQty(
                                   item.ORDER_DETAIL_ID,
                                   item.QUANTITY,
-                                  -item.QUANTITY
+                                  -item.QUANTITY,
                                 )
                               }
                               style={{
@@ -575,14 +784,45 @@ function Market() {
                     }}
                   >
                     <span style={{ color: "#64748b" }}>
-                      เลือก {storeSelectedItems.length} / {group.items.length} รายการ
+                      เลือก {storeSelectedItems.length} / {group.items.length}{" "}
+                      รายการ
                     </span>
-                    <span>
-                      รวมร้านนี้ (เฉพาะที่เลือก):{" "}
-                      <strong style={{ color: isClosed ? "#991b1b" : "#059669", fontSize: "1rem" }}>
-                        ฿{storeSelectedTotal.toLocaleString()}
-                      </strong>
-                    </span>
+                    <div
+                      style={{
+                        display: "flex",
+                        flexDirection: "column",
+                        alignItems: "flex-end",
+                        gap: "0.2rem",
+                      }}
+                    >
+                      <span>
+                        ยอดรวมสินค้า:{" "}
+                        <strong
+                          style={{
+                            color: isClosed ? "#991b1b" : "#059669",
+                            fontSize: "1rem",
+                          }}
+                        >
+                          ฿{storeSelectedTotal.toLocaleString()}
+                        </strong>
+                      </span>
+                      <span>
+                        ค่าจัดส่ง:{" "}
+                        <strong
+                          style={{
+                            color: isClosed ? "#991b1b" : "#2563eb",
+                            fontSize: "1rem",
+                          }}
+                        >
+                          ฿
+                          {shippingCosts.orderShippingCosts[orderId]
+                            ? shippingCosts.orderShippingCosts[
+                              orderId
+                            ].toLocaleString()
+                            : 0}
+                        </strong>
+                      </span>
+                    </div>
                   </div>
                 </div>
               );
@@ -599,7 +839,14 @@ function Market() {
               height: "fit-content",
             }}
           >
-            <h3 style={{ margin: "0 0 1rem 0", fontSize: "1.2rem", borderBottom: "1px solid #f1f5f9", paddingBottom: "0.75rem" }}>
+            <h3
+              style={{
+                margin: "0 0 1rem 0",
+                fontSize: "1.2rem",
+                borderBottom: "1px solid #f1f5f9",
+                paddingBottom: "0.75rem",
+              }}
+            >
               สรุปยอดคำสั่งซื้อ
             </h3>
 
@@ -620,6 +867,36 @@ function Market() {
               style={{
                 display: "flex",
                 justifyContent: "space-between",
+                marginBottom: "0.75rem",
+                color: "#64748b",
+                fontSize: "0.95rem",
+              }}
+            >
+              <span>ยอดรวมสินค้า:</span>
+              <strong style={{ color: "#1e293b" }}>
+                ฿{selectedGrandTotal.toLocaleString()}
+              </strong>
+            </div>
+
+            <div
+              style={{
+                display: "flex",
+                justifyContent: "space-between",
+                marginBottom: "0.75rem",
+                color: "#64748b",
+                fontSize: "0.95rem",
+              }}
+            >
+              <span>ค่าจัดส่งรวม:</span>
+              <strong style={{ color: "#2563eb" }}>
+                ฿{(shippingCosts.totalShipping || 0).toLocaleString()}
+              </strong>
+            </div>
+
+            <div
+              style={{
+                display: "flex",
+                justifyContent: "space-between",
                 fontSize: "1.25rem",
                 marginBottom: "1.5rem",
                 borderTop: "1px dashed #e2e8f0",
@@ -628,8 +905,42 @@ function Market() {
             >
               <span>ยอดสุทธิรวม:</span>
               <strong style={{ color: "#059669" }}>
-                ฿{selectedGrandTotal.toLocaleString()}
+                ฿
+                {(
+                  selectedGrandTotal + (shippingCosts.totalShipping || 0)
+                ).toLocaleString()}
               </strong>
+            </div>
+
+            <div style={{ marginBottom: "1rem", backgroundColor: "#f8fafc", padding: "1rem", borderRadius: "8px", border: "1px solid #e2e8f0" }}>
+              <div style={{ marginBottom: "1rem" }}>
+                <label style={{ display: "block", fontSize: "0.85rem", fontWeight: "bold", marginBottom: "0.4rem" }}>📍 เลือกที่อยู่จัดส่ง:</label>
+                <select
+                  value={destAddressId}
+                  onChange={(e) => setDestAddressId(e.target.value)}
+                  style={{ width: "100%", padding: "0.6rem", borderRadius: "6px", border: "1px solid #cbd5e1", fontSize: "0.9rem" }}
+                >
+                  <option value="" disabled>-- กรุณาเลือกที่อยู่ --</option>
+                  {addresses.map((a) => (
+                    <option key={a.ADDRESS_ID} value={a.ADDRESS_ID}>
+                      {a.ADDRESS_LINE} {a.SUB_DISTRICT} {a.DISTRICT} {a.PROVINCE} {a.ZIP_CODE}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label style={{ display: "block", fontSize: "0.85rem", fontWeight: "bold", marginBottom: "0.4rem" }}>💳 วิธีการชำระเงิน:</label>
+                <select
+                  value={paymentMethod}
+                  onChange={(e) => setPaymentMethod(e.target.value)}
+                  style={{ width: "100%", padding: "0.6rem", borderRadius: "6px", border: "1px solid #cbd5e1", fontSize: "0.9rem" }}
+                >
+                  <option value="Cash">เงินสด (Cash)</option>
+                  <option value="Credit Card">บัตรเครดิต (Credit Card)</option>
+                  <option value="Bank Transfer">โอนเงิน (Bank Transfer)</option>
+                </select>
+              </div>
             </div>
 
             {hasClosedStoreInCart && (
@@ -645,7 +956,9 @@ function Market() {
                   lineHeight: "1.4",
                 }}
               >
-                ℹ️ มีสินค้าจากร้านที่ปิดให้บริการอยู่ในตะกร้า สินค้าเหล่านั้นจะไม่สามารถเลือกสั่งซื้อได้ชั่วคราว (คุณยังคงสั่งซื้อสินค้าจากร้านอื่นที่เปิดได้ตามปกติ)
+                ℹ️ มีสินค้าจากร้านที่ปิดให้บริการอยู่ในตะกร้า
+                สินค้าเหล่านั้นจะไม่สามารถเลือกสั่งซื้อได้ชั่วคราว
+                (คุณยังคงสั่งซื้อสินค้าจากร้านอื่นที่เปิดได้ตามปกติ)
               </div>
             )}
 
@@ -662,7 +975,10 @@ function Market() {
                 cursor: selectedCount === 0 ? "not-allowed" : "pointer",
                 fontSize: "1rem",
                 fontWeight: "bold",
-                boxShadow: selectedCount > 0 ? "0 2px 4px rgba(5, 150, 105, 0.2)" : "none",
+                boxShadow:
+                  selectedCount > 0
+                    ? "0 2px 4px rgba(5, 150, 105, 0.2)"
+                    : "none",
                 transition: "all 0.2s ease",
               }}
             >
@@ -673,6 +989,128 @@ function Market() {
           </div>
         </div>
       )}
+
+      <hr style={{ margin: '3rem 0', borderColor: '#e2e8f0' }} />
+      <h2>📦 สถานะการจัดส่ง</h2>
+
+      {activeOrders.filter(o => o.STATUS === 'Pending' || o.STATUS === 'Delivered').length === 0 ? (
+        <p style={{ color: '#64748b' }}>ไม่มีรายการจัดส่ง</p>
+      ) : (
+        activeOrders.filter(o => o.STATUS === 'Pending' || o.STATUS === 'Delivered').map((order) => {
+          const isDelivered = order.STATUS === 'Delivered';
+          const orderDate = new Date(order.ORDER_DATE).getTime();
+          const deliveryDate = new Date(order.EST_DELIVERY_DATE).getTime();
+          const now = currentTime;
+          const progress = isDelivered ? 100 : Math.min(100, Math.max(0, ((now - orderDate) / (deliveryDate - orderDate)) * 100));
+
+          return (
+            <div key={order.ORDER_ID} style={{
+              backgroundColor: isDelivered ? '#fef3c7' : '#fff',
+              border: `1px solid ${isDelivered ? '#f59e0b' : '#e2e8f0'}`,
+              borderRadius: '8px',
+              padding: '1.5rem',
+              marginBottom: '1rem',
+              boxShadow: '0 1px 3px rgba(0,0,0,0.1)'
+            }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '1rem' }}>
+                <div>
+                  <h3 style={{ margin: 0 }}>ร้าน: {order.ST_NAME} (บิล #{order.ORDER_ID})</h3>
+                  <small style={{ color: '#64748b' }}>สั่งเมื่อ: {new Date(order.ORDER_DATE).toLocaleString()}</small>
+                </div>
+                <div>
+                  <span style={{
+                    padding: '0.4rem 0.8rem',
+                    borderRadius: '20px',
+                    fontSize: '0.8rem',
+                    fontWeight: 'bold',
+                    backgroundColor: isDelivered ? '#f59e0b' : '#3b82f6',
+                    color: 'white'
+                  }}>
+                    {isDelivered ? 'พัสดุถึงแล้ว' : 'กำลังจัดส่ง'}
+                  </span>
+                </div>
+              </div>
+
+              {/* Progress bar */}
+              {!isDelivered && (
+                <div style={{ marginBottom: '1.5rem' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.85rem', marginBottom: '0.5rem', color: '#64748b' }}>
+                    <span>เตรียมจัดส่ง</span>
+                    <span>คาดว่าจะถึง: {new Date(order.EST_DELIVERY_DATE).toLocaleString()}</span>
+                  </div>
+                  <div style={{ height: '8px', backgroundColor: '#e2e8f0', borderRadius: '4px', overflow: 'hidden' }}>
+                    <div style={{ height: '100%', backgroundColor: '#3b82f6', width: `${progress}%`, transition: 'width 1s linear' }}></div>
+                  </div>
+                </div>
+              )}
+
+              {/* Items */}
+              <div style={{ marginBottom: '1rem' }}>
+                {order.items.map(item => (
+                  <div key={item.ORDER_DETAIL_ID} style={{ display: 'flex', gap: '1rem', marginBottom: '0.5rem', alignItems: 'center' }}>
+                    <img src={item.IMAGE_URL} alt={item.PRODUCT_NAME} style={{ width: '40px', height: '40px', objectFit: 'cover', borderRadius: '4px' }} />
+                    <span style={{ flex: 1 }}>{item.PRODUCT_NAME}</span>
+                    <span style={{ color: '#64748b' }}>{item.QUANTITY} ชิ้น</span>
+                  </div>
+                ))}
+              </div>
+
+              {isDelivered && (
+                <div style={{ textAlign: 'right', marginTop: '1rem' }}>
+                  <p style={{ fontSize: '0.85rem', color: '#b45309', marginBottom: '0.5rem' }}>กรุณากดยืนยันเมื่อคุณได้รับสินค้าแล้ว</p>
+                  <button
+                    onClick={() => handleReceive(order.ORDER_ID)}
+                    style={{
+                      padding: '0.6rem 1.2rem',
+                      backgroundColor: '#f59e0b',
+                      color: 'white',
+                      border: 'none',
+                      borderRadius: '6px',
+                      cursor: 'pointer',
+                      fontWeight: 'bold'
+                    }}
+                  >
+                    ได้รับสินค้าแล้ว
+                  </button>
+                </div>
+              )}
+            </div>
+          );
+        })
+      )}
+
+      {/* Review Modal */}
+      {reviewModalOpen && (
+        <div style={{
+          position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
+          backgroundColor: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000
+        }}>
+          <div style={{ backgroundColor: 'white', padding: '2rem', borderRadius: '8px', width: '90%', maxWidth: '400px', textAlign: 'center' }}>
+            <h2 style={{ marginTop: 0 }}>ให้คะแนนร้านค้า</h2>
+            <p style={{ color: '#64748b', marginBottom: '1.5rem' }}>กรุณาให้คะแนนความพึงพอใจ</p>
+            <div style={{ display: 'flex', justifyContent: 'center', gap: '0.5rem', marginBottom: '2rem' }}>
+              {[1, 2, 3, 4, 5].map((star) => (
+                <span
+                  key={star}
+                  onClick={() => setReviewRating(star)}
+                  style={{
+                    fontSize: '2rem',
+                    cursor: 'pointer',
+                    color: star <= reviewRating ? '#f59e0b' : '#e2e8f0'
+                  }}
+                >
+                  ★
+                </span>
+              ))}
+            </div>
+            <div style={{ display: 'flex', gap: '1rem' }}>
+              <button onClick={() => setReviewModalOpen(false)} style={{ flex: 1, padding: '0.75rem', border: '1px solid #cbd5e1', backgroundColor: 'white', borderRadius: '6px', cursor: 'pointer' }}>ยกเลิก</button>
+              <button onClick={submitReview} style={{ flex: 1, padding: '0.75rem', border: 'none', backgroundColor: '#059669', color: 'white', borderRadius: '6px', cursor: 'pointer', fontWeight: 'bold' }}>ยืนยัน</button>
+            </div>
+          </div>
+        </div>
+      )}
+
     </div>
   );
 }

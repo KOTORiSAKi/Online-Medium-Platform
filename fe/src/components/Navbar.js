@@ -769,7 +769,7 @@ function Navbar() {
               หน้าแรก
             </NavLink>
             <NavLink to="/market" style={linkStyle}>
-              ตะกร้า
+              การสั่งซื้อ
             </NavLink>
             <NavLink to="/profile" style={linkStyle}>
               โปรไฟล์

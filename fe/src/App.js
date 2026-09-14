@@ -12,6 +12,8 @@ import Profile from "./Pages/Profile";
 import Market from "./Pages/Market";
 import Register from "./Pages/Register";
 import ProductManager from "./Pages/ProductManager";
+import ShippingManager from "./Pages/ShippingManager";
+import OrderHistory from "./Pages/OrderHistory";
 
 function App() {
   return (
@@ -30,8 +32,10 @@ function App() {
             <Route path="/login" element={<Login />} />
             <Route path="/profile" element={<Profile />} />
             <Route path="/market" element={<Market />} />
+            <Route path="/history" element={<OrderHistory />} />
             <Route path="/register" element={<Register />} />
             <Route path="/product-manager/:stId" element={<ProductManager />} />
+            <Route path="/shipping-manager" element={<ShippingManager />} />
             <Route
               path="*"
               element={

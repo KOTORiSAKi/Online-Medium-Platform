@@ -441,16 +441,30 @@ app.post('/api/cart/checkout', async (req, res) => {
   let connection;
   try {
     connection = await oracledb.getConnection();
-    const { orderIds, selectedDetailIds, destAddressId, paymentMethod } = req.body;
+    const { orderIds, selectedDetailIds, destAddressId, paymentMethod, shippingProviders, shippingTypes } = req.body;
+
+    if (!destAddressId) {
+      return res.status(400).json({ error: "กรุณาเลือกที่อยู่จัดส่ง" });
+    }
+
+    let delaySec = 60;
+    try {
+      const delayRes = await connection.execute(`SELECT CONFIG_VALUE FROM SYSTEM_CONFIG WHERE CONFIG_KEY = 'SHIPPING_DELAY_SEC'`);
+      if (delayRes.rows.length > 0) delaySec = Number(delayRes.rows[0].CONFIG_VALUE);
+    } catch (e) { }
 
     if (selectedDetailIds && Array.isArray(selectedDetailIds) && selectedDetailIds.length > 0) {
       const placeholders = selectedDetailIds.map((_, idx) => `:${idx + 1}`).join(', ');
+
+      // 1. Fetch details including Product dimensions & weight
       const detailsRes = await connection.execute(
         `SELECT od.ORDER_DETAIL_ID, od.ORDER_ID, od.QUANTITY, od.UNIT_PRICE,
+                p.WEIGHT, p.WIDTH, p.LENGTH, p.HEIGHT,
                 o.AC_ID, o.ST_ID, s.ST_NAME, s.IS_OPEN, s.ADDRESS_ID AS ORIGIN_ADDRESS_ID
          FROM ORDER_DETAIL od
          JOIN ORDERS o ON od.ORDER_ID = o.ORDER_ID
          JOIN STORE s ON o.ST_ID = s.ST_ID
+         JOIN PRODUCT p ON od.PRODUCT_ID = p.PRODUCT_ID
          WHERE od.ORDER_DETAIL_ID IN (${placeholders})`,
         selectedDetailIds
       );
@@ -462,13 +476,25 @@ app.post('/api/cart/checkout', async (req, res) => {
         return res.status(400).json({ error: `ไม่สามารถสั่งซื้อได้: ร้าน "${closedStoreItem.ST_NAME}" ปิดให้บริการชั่วคราว` });
       }
 
+      // Group by old ORDER_ID
       const selectedByOrder = {};
       for (const item of detailsRes.rows) {
         if (!selectedByOrder[item.ORDER_ID]) {
-          selectedByOrder[item.ORDER_ID] = { acId: item.AC_ID, stId: item.ST_ID, originAddressId: item.ORIGIN_ADDRESS_ID, items: [] };
+          selectedByOrder[item.ORDER_ID] = {
+            acId: item.AC_ID,
+            stId: item.ST_ID,
+            originAddressId: item.ORIGIN_ADDRESS_ID,
+            items: []
+          };
         }
         selectedByOrder[item.ORDER_ID].items.push(item);
       }
+
+      // 2. Fetch Buyer Province
+      const buyerAddrRes = await connection.execute(
+        `SELECT PROVINCE FROM ADDRESS WHERE ADDRESS_ID = :1`, [destAddressId]
+      );
+      const buyerProvince = buyerAddrRes.rows.length > 0 ? buyerAddrRes.rows[0].PROVINCE : '';
 
       for (const oldOrderIdStr of Object.keys(selectedByOrder)) {
         const oldOrderId = Number(oldOrderIdStr);
@@ -476,37 +502,147 @@ app.post('/api/cart/checkout', async (req, res) => {
         const selItems = orderInfo.items;
         const selDetailIds = selItems.map(it => it.ORDER_DETAIL_ID);
 
+        // Get shipping provider
+        const dvServiceId = shippingProviders && shippingProviders[oldOrderId] ? shippingProviders[oldOrderId] : null;
+        if (!dvServiceId) {
+          return res.status(400).json({ error: `กรุณาเลือกบริการจัดส่งสำหรับร้าน ${orderInfo.items[0].ST_NAME}` });
+        }
+
+        // 3. Fetch Seller Province
+        let sellerProvince = '';
+        if (orderInfo.originAddressId) {
+          const sellerAddrRes = await connection.execute(
+            `SELECT PROVINCE FROM ADDRESS WHERE ADDRESS_ID = :1`, [orderInfo.originAddressId]
+          );
+          sellerProvince = sellerAddrRes.rows.length > 0 ? sellerAddrRes.rows[0].PROVINCE : '';
+        }
+
+        // 4. Determine Route Fee
+        let routeType = (buyerProvince === sellerProvince && buyerProvince !== '') ? 'SAME_PROVINCE' : 'CROSS_PROVINCE';
+        const routeFeeRes = await connection.execute(
+          `SELECT EXTRA_FEE FROM STATIC_ROUTE_FEE WHERE ROUTE_TYPE = :1`, [routeType]
+        );
+        let extraFee = routeFeeRes.rows.length > 0 ? Number(routeFeeRes.rows[0].EXTRA_FEE) : 0;
+
+        // 5. Calculate Metrics (Aggregation)
+        let sumWeight = 0;
+        let sumSize = 0;
+        let allProductPrice = 0;
+
+        for (const it of selItems) {
+          allProductPrice += (it.QUANTITY * it.UNIT_PRICE);
+          sumWeight += (it.QUANTITY * (it.WEIGHT || 0));
+          sumSize += (it.QUANTITY * ((it.WIDTH || 0) + (it.LENGTH || 0) + (it.HEIGHT || 0)));
+        }
+
+        // 6. Tier Matching
+        let weightTierId = 6;
+        let defaultWeightPrice = 0;
+        let sizeTierId = 6;
+        let defaultSizePrice = 0;
+
+        const wTierRes = await connection.execute(
+          `SELECT WEIGHT_TIER_ID, NVL(DEFAULT_WEIGHT_PRICE, 0) as DEFAULT_WEIGHT_PRICE FROM WEIGHT_TIER WHERE :1 BETWEEN MIN_WEIGHT AND MAX_WEIGHT`, [sumWeight]
+        );
+        if (wTierRes.rows.length > 0) {
+          weightTierId = wTierRes.rows[0].WEIGHT_TIER_ID;
+          defaultWeightPrice = wTierRes.rows[0].DEFAULT_WEIGHT_PRICE;
+        }
+
+        const sTierRes = await connection.execute(
+          `SELECT SIZE_TIER_ID, NVL(DEFAULT_SIZE_PRICE, 0) as DEFAULT_SIZE_PRICE FROM SIZE_TIER WHERE :1 BETWEEN MIN_SIZE AND MAX_SIZE`, [sumSize]
+        );
+        if (sTierRes.rows.length > 0) {
+          sizeTierId = sTierRes.rows[0].SIZE_TIER_ID;
+          defaultSizePrice = sTierRes.rows[0].DEFAULT_SIZE_PRICE;
+        }
+
+        // Fetch DVSERVICE and DVSERVICE_TYPE default prices
+        const dvRes = await connection.execute(
+          `SELECT NVL(DEFAULT_PRICE, 0) as DEFAULT_PRICE FROM DVSERVICE WHERE DVSERVICE_ID = :1`,
+          [dvServiceId]
+        );
+        let dvDefaultPrice = dvRes.rows.length > 0 ? dvRes.rows[0].DEFAULT_PRICE : 0;
+
+        const dvServiceTypeId = shippingTypes ? (shippingTypes[oldOrderId] || 1) : 1;
+
+        const dvTypeRes = await connection.execute(
+          `SELECT NVL(DEFAULT_TYPE_PRICE, 0) as DEFAULT_TYPE_PRICE FROM DVSERVICE_TYPE WHERE DVSERVICE_TYPE_ID = :1`,
+          [dvServiceTypeId]
+        );
+        let dvTypeDefaultPrice = dvTypeRes.rows.length > 0 ? dvTypeRes.rows[0].DEFAULT_TYPE_PRICE : 0;
+
+        // 7. Base Price Retrieval
+        let baseDvPrice = 0;
+        let priceId = null;
+
+        // Fetch Base Price using selected type
+        if (weightTierId && sizeTierId) {
+          const priceRes = await connection.execute(
+            `SELECT PRICE_ID, PRICE FROM PRICE 
+              WHERE DVSERVICE_ID = :1 AND WEIGHT_TIER_ID = :2 AND SIZE_TIER_ID = :3 AND DVSERVICE_TYPE_ID = :4`,
+            [dvServiceId, weightTierId, sizeTierId, dvServiceTypeId]
+          );
+          if (priceRes.rows.length > 0) {
+            priceId = priceRes.rows[0].PRICE_ID;
+            baseDvPrice = Number(priceRes.rows[0].PRICE);
+          }
+        }
+
+        baseDvPrice += defaultWeightPrice + defaultSizePrice + dvDefaultPrice + dvTypeDefaultPrice;
+
+        const dvPrice = baseDvPrice + extraFee;
+        const totalPrice = allProductPrice + dvPrice;
+
         const allItemsRes = await connection.execute(`SELECT ORDER_DETAIL_ID FROM ORDER_DETAIL WHERE ORDER_ID = :1`, [oldOrderId]);
         const allDetailIds = allItemsRes.rows.map(r => r.ORDER_DETAIL_ID);
 
+        let finalOrderId = oldOrderId;
+
         if (selDetailIds.length === allDetailIds.length) {
+          // Update existing order
           await connection.execute(
             `UPDATE ORDERS 
              SET STATUS = 'Pending', 
                  ORDER_DATE = SYSDATE,
-                 TOTAL_PRICE = (SELECT NVL(SUM(QUANTITY * UNIT_PRICE), 0) FROM ORDER_DETAIL WHERE ORDER_ID = :1),
-                 ORIGIN_ADDRESS_ID = :2,
-                 DEST_ADDRESS_ID = :3,
-                 PAYMENT_METHOD = :4,
-                 PAYMENT_STATUS = 'Pending'
-             WHERE ORDER_ID = :1`,
-            [oldOrderId, orderInfo.originAddressId, destAddressId, paymentMethod || 'Cash']
+                 EST_DELIVERY_DATE = SYSDATE + (:1 / (24 * 60 * 60)),
+                 PRICE_ID = :2,
+                 SUM_WEIGHT = :3,
+                 SUM_SIZE = :4,
+                 DV_PRICE = :5,
+                 ALL_PRODUCT_PRICE = :6,
+                 TOTAL_PRICE = :7,
+                 DEST_ADDRESS_ID = :8,
+                 PAYMENT_METHOD = :9,
+                 PAYMENT_STATUS = 'Pending',
+                 SHIPPING_PROVIDER_ID = :10
+             WHERE ORDER_ID = :11`,
+            [delaySec, priceId, sumWeight, sumSize, dvPrice, allProductPrice, totalPrice, destAddressId, paymentMethod || 'Cash', dvServiceId, oldOrderId]
           );
         } else {
-          const selTotalPrice = selItems.reduce((sum, it) => sum + (it.QUANTITY * it.UNIT_PRICE), 0);
+          // Partial checkout: Split order
           const newOrderRes = await connection.execute(`SELECT NVL(MAX(ORDER_ID), 0) + 1 AS NEW_ID FROM ORDERS`);
-          const newOrderId = newOrderRes.rows[0].NEW_ID;
+          finalOrderId = newOrderRes.rows[0].NEW_ID;
 
           await connection.execute(
-            `INSERT INTO ORDERS (ORDER_ID, AC_ID, ST_ID, ORDER_DATE, STATUS, TOTAL_PRICE, ORIGIN_ADDRESS_ID, DEST_ADDRESS_ID, PAYMENT_METHOD, PAYMENT_STATUS)
-             VALUES (:1, :2, :3, SYSDATE, 'Pending', :4, :5, :6, :7, 'Pending')`,
-            [newOrderId, orderInfo.acId, orderInfo.stId, selTotalPrice, orderInfo.originAddressId, destAddressId, paymentMethod || 'Cash']
+            `INSERT INTO ORDERS (ORDER_ID, AC_ID, ST_ID, ORDER_DATE, STATUS, 
+                EST_DELIVERY_DATE,
+                PRICE_ID, SUM_WEIGHT, SUM_SIZE, DV_PRICE, ALL_PRODUCT_PRICE, 
+                TOTAL_PRICE, DEST_ADDRESS_ID, PAYMENT_METHOD, PAYMENT_STATUS, SHIPPING_PROVIDER_ID)
+             VALUES (:1, :2, :3, SYSDATE, 'Pending', 
+                SYSDATE + (:4 / (24 * 60 * 60)),
+                :5, :6, :7, :8, :9, 
+                :10, :11, :12, 'Pending', :13)`,
+            [finalOrderId, orderInfo.acId, orderInfo.stId, delaySec,
+              priceId, sumWeight, sumSize, dvPrice, allProductPrice,
+              totalPrice, destAddressId, paymentMethod || 'Cash', dvServiceId]
           );
 
           for (const dtId of selDetailIds) {
-            await connection.execute(`UPDATE ORDER_DETAIL SET ORDER_ID = :1 WHERE ORDER_DETAIL_ID = :2`, [newOrderId, dtId]);
+            await connection.execute(`UPDATE ORDER_DETAIL SET ORDER_ID = :1 WHERE ORDER_DETAIL_ID = :2`, [finalOrderId, dtId]);
           }
 
+          // Recalculate old order total (just all product price since it's still in cart)
           await connection.execute(
             `UPDATE ORDERS SET TOTAL_PRICE = (SELECT NVL(SUM(QUANTITY * UNIT_PRICE), 0) FROM ORDER_DETAIL WHERE ORDER_ID = :1) WHERE ORDER_ID = :1`,
             [oldOrderId]
@@ -516,23 +652,6 @@ app.post('/api/cart/checkout', async (req, res) => {
       return res.json({ message: 'สั่งซื้อสินค้าที่เลือกสำเร็จ!' });
     }
 
-    if (orderIds && Array.isArray(orderIds) && orderIds.length > 0) {
-      for (let id of orderIds) {
-        const checkStore = await connection.execute(
-          `SELECT s.ST_NAME, s.IS_OPEN, s.ADDRESS_ID FROM ORDERS o JOIN STORE s ON o.ST_ID = s.ST_ID WHERE o.ORDER_ID = :1`,
-          [id]
-        );
-        if (checkStore.rows.length > 0 && checkStore.rows[0].IS_OPEN === 'N') {
-          return res.status(400).json({ error: `ไม่สามารถสั่งซื้อได้: ร้าน "${checkStore.rows[0].ST_NAME}" ปิดให้บริการชั่วคราว` });
-        }
-        await connection.execute(
-          `UPDATE ORDERS SET STATUS = 'Pending', ORDER_DATE = SYSDATE, ORIGIN_ADDRESS_ID = :1, DEST_ADDRESS_ID = :2, PAYMENT_METHOD = :3, PAYMENT_STATUS = 'Pending' WHERE ORDER_ID = :4`,
-          [checkStore.rows[0].ADDRESS_ID, destAddressId, paymentMethod || 'Cash', id]
-        );
-      }
-      return res.json({ message: 'สั่งซื้อสำเร็จ!' });
-    }
-
     return res.status(400).json({ error: "กรุณาเลือกสินค้าที่ต้องการสั่งซื้อ" });
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -540,7 +659,6 @@ app.post('/api/cart/checkout', async (req, res) => {
     if (connection) { try { await connection.close(); } catch (e) { } }
   }
 });
-
 // =====================================
 // API: ปรับเปลี่ยนจำนวนสินค้าในตะกร้า / ลบทิ้ง
 // =====================================
@@ -1214,5 +1332,499 @@ app.put('/api/address/:id', async (req, res) => {
     res.status(500).json({ error: err.message });
   } finally {
     if (connection) { try { await connection.close(); } catch (e) { } }
+  }
+});
+
+// =====================================
+// API: ดึงรายการบริการจัดส่งที่ร้านค้ารองรับ
+// =====================================
+app.get('/api/stores/:stId/services', async (req, res) => {
+  let connection;
+  try {
+    connection = await oracledb.getConnection();
+    const sql = `
+      SELECT d.DVSERVICE_ID, d.DVSERVICE_NAME, sd.IS_PICKUP_ENABLED, sd.IS_DROPOFF_ENABLED
+      FROM SHOP_DVSERVICE sd
+      JOIN DVSERVICE d ON sd.DVSERVICE_ID = d.DVSERVICE_ID
+      WHERE sd.ST_ID = :1 AND sd.IS_ACTIVE = 'Y'
+    `;
+    const result = await connection.execute(sql, [req.params.stId]);
+    res.json(result.rows);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  } finally {
+    if (connection) { try { await connection.close(); } catch (e) { } }
+  }
+});
+
+// =====================================
+// API: ระบบจัดการค่าจัดส่ง (Shipping Management)
+// =====================================
+
+// 1. SIZE TIER
+app.get('/api/admin/size-tiers', async (req, res) => {
+  let connection;
+  try {
+    connection = await oracledb.getConnection();
+    const result = await connection.execute(`SELECT * FROM SIZE_TIER ORDER BY SIZE_TIER_ID`);
+    res.json(result.rows);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  } finally {
+    if (connection) { try { await connection.close(); } catch (e) { } }
+  }
+});
+
+app.put('/api/admin/size-tiers/:id', async (req, res) => {
+  let connection;
+  try {
+    const { MIN_SIZE, MAX_SIZE, TIER_NAME } = req.body;
+    connection = await oracledb.getConnection();
+    await connection.execute(
+      `UPDATE SIZE_TIER SET MIN_SIZE = :1, MAX_SIZE = :2, TIER_NAME = :3 WHERE SIZE_TIER_ID = :4`,
+      [MIN_SIZE, MAX_SIZE, TIER_NAME, req.params.id],
+      { autoCommit: true }
+    );
+    res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  } finally {
+    if (connection) { try { await connection.close(); } catch (e) { } }
+  }
+});
+
+// 2. WEIGHT TIER
+app.get('/api/admin/weight-tiers', async (req, res) => {
+  let connection;
+  try {
+    connection = await oracledb.getConnection();
+    const result = await connection.execute(`SELECT * FROM WEIGHT_TIER ORDER BY WEIGHT_TIER_ID`);
+    res.json(result.rows);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  } finally {
+    if (connection) { try { await connection.close(); } catch (e) { } }
+  }
+});
+
+app.put('/api/admin/weight-tiers/:id', async (req, res) => {
+  let connection;
+  try {
+    const { MIN_WEIGHT, MAX_WEIGHT, TIER_NAME } = req.body;
+    connection = await oracledb.getConnection();
+    await connection.execute(
+      `UPDATE WEIGHT_TIER SET MIN_WEIGHT = :1, MAX_WEIGHT = :2, TIER_NAME = :3 WHERE WEIGHT_TIER_ID = :4`,
+      [MIN_WEIGHT, MAX_WEIGHT, TIER_NAME, req.params.id],
+      { autoCommit: true }
+    );
+    res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  } finally {
+    if (connection) { try { await connection.close(); } catch (e) { } }
+  }
+});
+
+// 3. STATIC ROUTE FEE
+app.get('/api/admin/route-fees', async (req, res) => {
+  let connection;
+  try {
+    connection = await oracledb.getConnection();
+    const result = await connection.execute(`SELECT * FROM STATIC_ROUTE_FEE ORDER BY ROUTE_ID`);
+    res.json(result.rows);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  } finally {
+    if (connection) { try { await connection.close(); } catch (e) { } }
+  }
+});
+
+app.put('/api/admin/route-fees/:id', async (req, res) => {
+  let connection;
+  try {
+    const { EXTRA_FEE, DESCRIPTION } = req.body;
+    connection = await oracledb.getConnection();
+    await connection.execute(
+      `UPDATE STATIC_ROUTE_FEE SET EXTRA_FEE = :1, DESCRIPTION = :2 WHERE ROUTE_ID = :3`,
+      [EXTRA_FEE, DESCRIPTION, req.params.id],
+      { autoCommit: true }
+    );
+    res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  } finally {
+    if (connection) { try { await connection.close(); } catch (e) { } }
+  }
+});
+
+// 4. PRICE
+app.get('/api/admin/prices', async (req, res) => {
+  let connection;
+  try {
+    connection = await oracledb.getConnection();
+    const sql = `
+      SELECT p.PRICE_ID, p.DVSERVICE_ID, d.DVSERVICE_NAME, p.WEIGHT_TIER_ID, w.TIER_NAME AS WEIGHT_TIER_NAME, 
+             p.SIZE_TIER_ID, s.TIER_NAME AS SIZE_TIER_NAME, p.PRICE 
+      FROM PRICE p
+      JOIN DVSERVICE d ON p.DVSERVICE_ID = d.DVSERVICE_ID
+      JOIN WEIGHT_TIER w ON p.WEIGHT_TIER_ID = w.WEIGHT_TIER_ID
+      JOIN SIZE_TIER s ON p.SIZE_TIER_ID = s.SIZE_TIER_ID
+      WHERE p.DVSERVICE_TYPE_ID = 1
+      ORDER BY p.DVSERVICE_ID, p.WEIGHT_TIER_ID, p.SIZE_TIER_ID
+    `;
+    const result = await connection.execute(sql);
+    res.json(result.rows);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  } finally {
+    if (connection) { try { await connection.close(); } catch (e) { } }
+  }
+});
+
+app.put('/api/admin/prices/:id', async (req, res) => {
+  let connection;
+  try {
+    const { PRICE } = req.body;
+    connection = await oracledb.getConnection();
+    await connection.execute(
+      `UPDATE PRICE SET PRICE = :1 WHERE PRICE_ID = :2`,
+      [PRICE, req.params.id],
+      { autoCommit: true }
+    );
+    res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  } finally {
+    if (connection) { try { await connection.close(); } catch (e) { } }
+  }
+});
+
+// =====================================
+// API: คำนวณค่าจัดส่ง (Calculate Shipping)
+// =====================================
+app.post('/api/cart/calculate-shipping', async (req, res) => {
+  let connection;
+  try {
+    const { selectedDetailIds, destAddressId, shippingProviders, shippingTypes } = req.body;
+    if (!selectedDetailIds || selectedDetailIds.length === 0 || !destAddressId) {
+      return res.json({ orderShippingCosts: {}, totalShipping: 0 });
+    }
+
+    connection = await oracledb.getConnection();
+
+    // 1. Get dest address province
+    let destProvince = '';
+    const destRes = await connection.execute(
+      `SELECT PROVINCE FROM ADDRESS WHERE ADDRESS_ID = :1`,
+      [destAddressId]
+    );
+    if (destRes.rows.length > 0) destProvince = destRes.rows[0].PROVINCE;
+
+    // 2. Fetch selected items grouped by order
+    const placeholders = selectedDetailIds.map((_, i) => `:${i + 1}`).join(',');
+    const itemsRes = await connection.execute(
+      `SELECT od.ORDER_ID, o.ST_ID, od.QUANTITY, 
+              p.WEIGHT, p.WIDTH, p.LENGTH, p.HEIGHT 
+       FROM ORDER_DETAIL od
+       JOIN PRODUCT p ON od.PRODUCT_ID = p.PRODUCT_ID
+       JOIN ORDERS o ON od.ORDER_ID = o.ORDER_ID
+       WHERE od.ORDER_DETAIL_ID IN (${placeholders})`,
+      selectedDetailIds
+    );
+
+    const orderGroups = {};
+    for (const row of itemsRes.rows) {
+      if (!orderGroups[row.ORDER_ID]) {
+        orderGroups[row.ORDER_ID] = {
+          ST_ID: row.ST_ID,
+          sumWeight: 0,
+          sumSize: 0
+        };
+      }
+      orderGroups[row.ORDER_ID].sumWeight += (row.WEIGHT || 0) * row.QUANTITY;
+      orderGroups[row.ORDER_ID].sumSize += ((row.WIDTH || 0) + (row.LENGTH || 0) + (row.HEIGHT || 0)) * row.QUANTITY;
+    }
+
+    const orderShippingCosts = {};
+    let totalShipping = 0;
+
+    for (const [orderId, data] of Object.entries(orderGroups)) {
+      const dvServiceId = shippingProviders ? (shippingProviders[orderId] || 1) : 1;
+      const dvServiceTypeId = shippingTypes ? (shippingTypes[orderId] || 1) : 1;
+
+      // 3. Find Tiers
+      const wRes = await connection.execute(
+        `SELECT WEIGHT_TIER_ID, NVL(DEFAULT_WEIGHT_PRICE, 0) as DEFAULT_WEIGHT_PRICE FROM WEIGHT_TIER WHERE :1 BETWEEN MIN_WEIGHT AND MAX_WEIGHT`,
+        [data.sumWeight]
+      );
+      let weightTierId = 6;
+      let defaultWeightPrice = 0;
+      if (wRes.rows.length > 0) {
+        weightTierId = wRes.rows[0].WEIGHT_TIER_ID;
+        defaultWeightPrice = wRes.rows[0].DEFAULT_WEIGHT_PRICE;
+      }
+
+      const sRes = await connection.execute(
+        `SELECT SIZE_TIER_ID, NVL(DEFAULT_SIZE_PRICE, 0) as DEFAULT_SIZE_PRICE FROM SIZE_TIER WHERE :1 BETWEEN MIN_SIZE AND MAX_SIZE`,
+        [data.sumSize]
+      );
+      let sizeTierId = 6;
+      let defaultSizePrice = 0;
+      if (sRes.rows.length > 0) {
+        sizeTierId = sRes.rows[0].SIZE_TIER_ID;
+        defaultSizePrice = sRes.rows[0].DEFAULT_SIZE_PRICE;
+      }
+
+      // Fetch DVSERVICE and DVSERVICE_TYPE default prices
+      const dvRes = await connection.execute(
+        `SELECT NVL(DEFAULT_PRICE, 0) as DEFAULT_PRICE FROM DVSERVICE WHERE DVSERVICE_ID = :1`,
+        [dvServiceId]
+      );
+      let dvDefaultPrice = dvRes.rows.length > 0 ? dvRes.rows[0].DEFAULT_PRICE : 0;
+
+      const dvTypeRes = await connection.execute(
+        `SELECT NVL(DEFAULT_TYPE_PRICE, 0) as DEFAULT_TYPE_PRICE FROM DVSERVICE_TYPE WHERE DVSERVICE_TYPE_ID = :1`,
+        [dvServiceTypeId]
+      );
+      let dvTypeDefaultPrice = dvTypeRes.rows.length > 0 ? dvTypeRes.rows[0].DEFAULT_TYPE_PRICE : 0;
+
+      // 4. Find Base Price
+      const priceRes = await connection.execute(
+        `SELECT PRICE FROM PRICE 
+         WHERE DVSERVICE_ID = :1 AND WEIGHT_TIER_ID = :2 AND SIZE_TIER_ID = :3 AND DVSERVICE_TYPE_ID = :4`,
+        [dvServiceId, weightTierId, sizeTierId, dvServiceTypeId]
+      );
+      let basePrice = 0;
+      if (priceRes.rows.length > 0) {
+        basePrice = priceRes.rows[0].PRICE;
+      }
+
+      // Add all default prices to basePrice
+      basePrice += defaultWeightPrice + defaultSizePrice + dvDefaultPrice + dvTypeDefaultPrice;
+
+      // 5. Route Fee
+      let sellerProvince = '';
+      const stRes = await connection.execute(
+        `SELECT a.PROVINCE FROM STORE s 
+         JOIN ADDRESS a ON s.ADDRESS_ID = a.ADDRESS_ID 
+         WHERE s.ST_ID = :1`,
+        [data.ST_ID]
+      );
+      if (stRes.rows.length > 0) sellerProvince = stRes.rows[0].PROVINCE;
+
+      let routeType = 'CROSS_PROVINCE';
+      if (destProvince && sellerProvince && destProvince === sellerProvince) {
+        routeType = 'SAME_PROVINCE';
+      }
+
+      const routeRes = await connection.execute(
+        `SELECT EXTRA_FEE FROM STATIC_ROUTE_FEE WHERE ROUTE_TYPE = :1`,
+        [routeType]
+      );
+      let extraFee = 50;
+      if (routeRes.rows.length > 0) extraFee = routeRes.rows[0].EXTRA_FEE;
+
+      const dvPrice = basePrice + extraFee;
+      orderShippingCosts[orderId] = dvPrice;
+      totalShipping += dvPrice;
+    }
+
+    res.json({ orderShippingCosts, totalShipping });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  } finally {
+    if (connection) { try { await connection.close(); } catch (e) { } }
+  }
+});
+
+// =====================================
+
+app.get('/api/shipping/config-prices', async (req, res) => {
+  let connection;
+  try {
+    connection = await oracledb.getConnection();
+    const dvServiceRes = await connection.execute(`SELECT DVSERVICE_ID, DVSERVICE_NAME, NVL(DEFAULT_PRICE, 0) as DEFAULT_PRICE FROM DVSERVICE`);
+    const dvTypeRes = await connection.execute(`SELECT DVSERVICE_TYPE_ID, TYPE_NAME, NVL(DEFAULT_TYPE_PRICE, 0) as DEFAULT_TYPE_PRICE FROM DVSERVICE_TYPE`);
+    const routeRes = await connection.execute(`SELECT ROUTE_ID, ROUTE_TYPE, EXTRA_FEE, DESCRIPTION FROM STATIC_ROUTE_FEE`);
+    const weightRes = await connection.execute(`SELECT WEIGHT_TIER_ID, TIER_NAME, NVL(DEFAULT_WEIGHT_PRICE, 0) as DEFAULT_WEIGHT_PRICE FROM WEIGHT_TIER`);
+    const sizeRes = await connection.execute(`SELECT SIZE_TIER_ID, TIER_NAME, NVL(DEFAULT_SIZE_PRICE, 0) as DEFAULT_SIZE_PRICE FROM SIZE_TIER`);
+
+    res.json({
+      dvServices: dvServiceRes.rows,
+      dvServiceTypes: dvTypeRes.rows,
+      routeFees: routeRes.rows,
+      weightTiers: weightRes.rows,
+      sizeTiers: sizeRes.rows
+    });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  } finally {
+    if (connection) { try { await connection.close(); } catch (e) { } }
+  }
+});
+
+// API: การจัดการ Shop_DVService (Seller)
+// =====================================
+
+// Get ALL services with store's active status
+app.get('/api/stores/:stId/services/all', async (req, res) => {
+  let connection;
+  try {
+    connection = await oracledb.getConnection();
+    const sql = `
+      SELECT d.DVSERVICE_ID, d.DVSERVICE_NAME, 
+             NVL(sd.IS_ACTIVE, 'N') as IS_ACTIVE,
+             NVL(sd.IS_PICKUP_ENABLED, 'N') as IS_PICKUP_ENABLED,
+             NVL(sd.IS_DROPOFF_ENABLED, 'N') as IS_DROPOFF_ENABLED
+      FROM DVSERVICE d
+      LEFT JOIN SHOP_DVSERVICE sd ON d.DVSERVICE_ID = sd.DVSERVICE_ID AND sd.ST_ID = :1
+    `;
+    const result = await connection.execute(sql, [req.params.stId]);
+    res.json(result.rows);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  } finally {
+    if (connection) { try { await connection.close(); } catch (e) { } }
+  }
+});
+
+// Update store's shipping services
+app.put('/api/stores/:stId/services', async (req, res) => {
+  let connection;
+  try {
+    const { services } = req.body; // Array of { DVSERVICE_ID, IS_ACTIVE, IS_PICKUP, IS_DROPOFF }
+    connection = await oracledb.getConnection();
+
+    for (const s of services) {
+      // Check if exists
+      const checkRes = await connection.execute(
+        `SELECT 1 FROM SHOP_DVSERVICE WHERE ST_ID = :1 AND DVSERVICE_ID = :2`,
+        [req.params.stId, s.DVSERVICE_ID]
+      );
+
+      if (checkRes.rows.length > 0) {
+        await connection.execute(
+          `UPDATE SHOP_DVSERVICE 
+           SET IS_ACTIVE = :1, IS_PICKUP_ENABLED = :2, IS_DROPOFF_ENABLED = :3 
+           WHERE ST_ID = :4 AND DVSERVICE_ID = :5`,
+          [s.IS_ACTIVE, s.IS_PICKUP, s.IS_DROPOFF, req.params.stId, s.DVSERVICE_ID],
+          { autoCommit: true }
+        );
+      } else {
+        await connection.execute(
+          `INSERT INTO SHOP_DVSERVICE (ST_ID, DVSERVICE_ID, IS_ACTIVE, IS_PICKUP_ENABLED, IS_DROPOFF_ENABLED)
+           VALUES (:1, :2, :3, :4, :5)`,
+          [req.params.stId, s.DVSERVICE_ID, s.IS_ACTIVE, s.IS_PICKUP, s.IS_DROPOFF],
+          { autoCommit: true }
+        );
+      }
+    }
+    res.json({ message: 'อัปเดตช่องทางขนส่งสำเร็จ' });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  } finally {
+    if (connection) { try { await connection.close(); } catch (e) { } }
+  }
+});
+
+// =====================================
+// API: Shipping Delay Config
+// =====================================
+app.get('/api/config/shipping-delay', async (req, res) => {
+  let connection;
+  try {
+    connection = await oracledb.getConnection();
+    const result = await connection.execute(`SELECT CONFIG_VALUE FROM SYSTEM_CONFIG WHERE CONFIG_KEY = 'SHIPPING_DELAY_SEC'`);
+    let delay = 60;
+    if (result.rows.length > 0) {
+      delay = Number(result.rows[0].CONFIG_VALUE);
+    }
+    res.json({ delaySec: delay });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  } finally {
+    if (connection) { try { await connection.close(); } catch (e) { } }
+  }
+});
+
+app.put('/api/config/shipping-delay', async (req, res) => {
+  const { delaySec } = req.body;
+  let connection;
+  try {
+    connection = await oracledb.getConnection();
+    await connection.execute(
+      `UPDATE SYSTEM_CONFIG SET CONFIG_VALUE = :1 WHERE CONFIG_KEY = 'SHIPPING_DELAY_SEC'`,
+      [delaySec.toString()]
+    );
+    res.json({ message: 'Updated successfully' });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  } finally {
+    if (connection) { try { await connection.close(); } catch (e) { } }
+  }
+});
+
+// =====================================
+// API: Orders (Fetch and Auto-update status)
+// =====================================
+app.get('/api/orders', async (req, res) => {
+  const { acId } = req.query;
+  let connection;
+  try {
+    connection = await oracledb.getConnection();
+    
+    // Check and auto-update Pending -> Delivered if EST_DELIVERY_DATE is reached
+    await connection.execute(
+      `UPDATE ORDERS 
+       SET STATUS = 'Delivered' 
+       WHERE AC_ID = :1 AND STATUS = 'Pending' AND SYSDATE >= EST_DELIVERY_DATE`,
+      [acId]
+    );
+
+    const result = await connection.execute(
+      `SELECT o.*, s.ST_NAME 
+       FROM ORDERS o
+       LEFT JOIN STORE s ON o.ST_ID = s.ST_ID
+       WHERE o.AC_ID = :1 AND o.STATUS IN ('Pending', 'Delivered', 'Reviewed')
+       ORDER BY o.ORDER_DATE DESC`,
+      [acId]
+    );
+    
+    // Fetch details for each order
+    const orders = result.rows;
+    for (let o of orders) {
+      const dtRes = await connection.execute(
+        `SELECT od.*, p.PRODUCT_NAME, p.IMAGE_URL 
+         FROM ORDER_DETAIL od
+         JOIN PRODUCT p ON od.PRODUCT_ID = p.PRODUCT_ID
+         WHERE od.ORDER_ID = :1`,
+        [o.ORDER_ID]
+      );
+      o.items = dtRes.rows;
+    }
+    
+    res.json(orders);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  } finally {
+    if (connection) { try { await connection.close(); } catch (e) {} }
+  }
+});
+
+app.post('/api/orders/:orderId/receive', async (req, res) => {
+  const { orderId } = req.params;
+  const { rating } = req.body; // star rating
+  let connection;
+  try {
+    connection = await oracledb.getConnection();
+    await connection.execute(
+      `UPDATE ORDERS SET STATUS = 'Reviewed', RATING = :1 WHERE ORDER_ID = :2`,
+      [rating, orderId]
+    );
+    res.json({ message: 'Received and Reviewed' });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  } finally {
+    if (connection) { try { await connection.close(); } catch (e) {} }
   }
 });
