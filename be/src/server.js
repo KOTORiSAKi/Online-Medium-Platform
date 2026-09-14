@@ -46,9 +46,10 @@ app.get("/api/products", async (req, res) => {
     // JOIN ตาราง PRODUCT และ STORE
     const sql = `
       SELECT p.PRODUCT_ID, p.PRODUCT_NAME, p.PRODUCT_PRICE, p.TYPE, p.IMAGE_URL, p.STOCK,
-             s.ST_ID, s.ST_NAME, s.LOCATION, s.IS_OPEN, s.RATING_POINT, s.SELLING_RATE 
+             s.ST_ID, s.ST_NAME, a.PROVINCE AS LOCATION, s.IS_OPEN, s.RATING_POINT, s.SELLING_RATE 
       FROM PRODUCT p
       JOIN STORE s ON p.ST_ID = s.ST_ID
+      LEFT JOIN ADDRESS a ON s.ADDRESS_ID = a.ADDRESS_ID
     `;
     const result = await connection.execute(sql);
     let items = [...result.rows];
@@ -157,9 +158,10 @@ app.get("/api/products/:id", async (req, res) => {
   try {
     connection = await oracledb.getConnection();
     const sql = `
-      SELECT p.*, s.ST_NAME, s.LOCATION, s.RATING_POINT, s.IS_OPEN
+      SELECT p.*, s.ST_NAME, a.PROVINCE AS LOCATION, s.RATING_POINT, s.IS_OPEN
       FROM PRODUCT p
       JOIN STORE s ON p.ST_ID = s.ST_ID
+      LEFT JOIN ADDRESS a ON s.ADDRESS_ID = a.ADDRESS_ID
       WHERE p.PRODUCT_ID = :id
     `;
     const result = await connection.execute(sql, [req.params.id]);
@@ -200,7 +202,8 @@ app.post("/api/login", async (req, res) => {
     const sql = `
       SELECT AC_ID, USERNAME, EMAIL, TYPE, FNAME, LNAME, GENDER, PHONE,
              TO_CHAR(BIRTH_DATE, 'YYYY-MM-DD') AS BIRTH_DATE,
-             TO_CHAR(REGISTED_DATE, 'YYYY-MM-DD HH24:MI:SS') AS REGISTED_DATE
+             TO_CHAR(REGISTERED_DATE, 'YYYY-MM-DD HH24:MI:SS') AS REGISTERED_DATE,
+             TO_CHAR(REGISTERED_DATE, 'YYYY-MM-DD HH24:MI:SS') AS REGISTED_DATE
       FROM ACCOUNT 
       WHERE EMAIL = :email AND PASSWORD = :password
     `;
@@ -232,7 +235,8 @@ app.get("/api/account/:id", async (req, res) => {
     const sql = `
       SELECT AC_ID, USERNAME, EMAIL, TYPE, FNAME, LNAME, GENDER, PHONE,
              TO_CHAR(BIRTH_DATE, 'YYYY-MM-DD') AS BIRTH_DATE,
-             TO_CHAR(REGISTED_DATE, 'YYYY-MM-DD HH24:MI:SS') AS REGISTED_DATE
+             TO_CHAR(REGISTERED_DATE, 'YYYY-MM-DD HH24:MI:SS') AS REGISTERED_DATE,
+             TO_CHAR(REGISTERED_DATE, 'YYYY-MM-DD HH24:MI:SS') AS REGISTED_DATE
       FROM ACCOUNT 
       WHERE AC_ID = :id
     `;
@@ -282,25 +286,19 @@ app.get("/api/orders/buyer/:acId", async (req, res) => {
 });
 
 // =====================================
-// API 5: Checkout สั่งซื้อสินค้า (หน้า Market)
-// =====================================
 app.post("/api/checkout", async (req, res) => {
-  // จำลองการรับข้อมูลตะกร้าสินค้าจาก FE
-  const { acId, stId, totalPrice, cartItems } = req.body;
+  const { acId, stId, totalPrice, cartItems, destAddressId, paymentMethod } = req.body;
   let connection;
   try {
     connection = await oracledb.getConnection();
-    // 1. สร้าง Order ใหม่ (ใช้ MAX+1 จำลอง ID ไปก่อน หรือถ้ามี Sequence ใช้ Sequence ได้)
-    const orderResult = await connection.execute(
-      `SELECT NVL(MAX(ORDER_ID), 0) + 1 AS NEW_ID FROM ORDERS`,
-    );
+    const storeRes = await connection.execute(`SELECT ADDRESS_ID FROM STORE WHERE ST_ID = :1`, [stId]);
+    const originAddressId = storeRes.rows.length > 0 ? storeRes.rows[0].ADDRESS_ID : null;
+    const orderResult = await connection.execute(`SELECT NVL(MAX(ORDER_ID), 0) + 1 AS NEW_ID FROM ORDERS`);
     const newOrderId = orderResult.rows[0].NEW_ID;
-
-    // 2. Insert ลงตาราง ORDERS
     await connection.execute(
-      `INSERT INTO ORDERS (ORDER_ID, AC_ID, ST_ID, ORDER_DATE, STATUS, TOTAL_PRICE) 
-       VALUES (:1, :2, :3, SYSDATE, 'Pending', :4)`,
-      [newOrderId, acId, stId, totalPrice],
+      `INSERT INTO ORDERS (ORDER_ID, AC_ID, ST_ID, ORDER_DATE, STATUS, TOTAL_PRICE, ORIGIN_ADDRESS_ID, DEST_ADDRESS_ID, PAYMENT_METHOD, PAYMENT_STATUS) 
+       VALUES (:1, :2, :3, SYSDATE, 'Pending', :4, :5, :6, :7, 'Pending')`,
+      [newOrderId, acId, stId, totalPrice, originAddressId, destAddressId, paymentMethod || 'Cash']
     );
 
     // 3. Insert ลงตาราง ORDER_DETAIL
@@ -443,15 +441,13 @@ app.post('/api/cart/checkout', async (req, res) => {
   let connection;
   try {
     connection = await oracledb.getConnection();
-    const { orderIds, selectedDetailIds } = req.body;
+    const { orderIds, selectedDetailIds, destAddressId, paymentMethod } = req.body;
 
-    // กรณีที่ 1: ผู้ใช้เลือกสินค้าเฉพาะบางรายการ (selectedDetailIds)
     if (selectedDetailIds && Array.isArray(selectedDetailIds) && selectedDetailIds.length > 0) {
-      // 1. ดึงข้อมูลรายการสินค้าที่เลือก พร้อมข้อมูลร้านและสถานะ IS_OPEN
       const placeholders = selectedDetailIds.map((_, idx) => `:${idx + 1}`).join(', ');
       const detailsRes = await connection.execute(
         `SELECT od.ORDER_DETAIL_ID, od.ORDER_ID, od.QUANTITY, od.UNIT_PRICE,
-                o.AC_ID, o.ST_ID, s.ST_NAME, s.IS_OPEN
+                o.AC_ID, o.ST_ID, s.ST_NAME, s.IS_OPEN, s.ADDRESS_ID AS ORIGIN_ADDRESS_ID
          FROM ORDER_DETAIL od
          JOIN ORDERS o ON od.ORDER_ID = o.ORDER_ID
          JOIN STORE s ON o.ST_ID = s.ST_ID
@@ -459,109 +455,79 @@ app.post('/api/cart/checkout', async (req, res) => {
         selectedDetailIds
       );
 
-      if (detailsRes.rows.length === 0) {
-        return res.status(400).json({ error: "ไม่พบสินค้าที่เลือกในระบบ" });
-      }
+      if (detailsRes.rows.length === 0) return res.status(400).json({ error: "ไม่พบสินค้าที่เลือกในระบบ" });
 
-      // 2. ตรวจสอบว่ามีสินค้าจากร้านค้าที่ปิดอยู่หรือไม่
       const closedStoreItem = detailsRes.rows.find(item => item.IS_OPEN === 'N');
       if (closedStoreItem) {
-        return res.status(400).json({
-          error: `ไม่สามารถสั่งซื้อได้: ร้าน "${closedStoreItem.ST_NAME}" ปิดให้บริการชั่วคราว`
-        });
+        return res.status(400).json({ error: `ไม่สามารถสั่งซื้อได้: ร้าน "${closedStoreItem.ST_NAME}" ปิดให้บริการชั่วคราว` });
       }
 
-      // 3. จัดกลุ่มรายการสินค้าที่เลือกตาม ORDER_ID เดิม
       const selectedByOrder = {};
       for (const item of detailsRes.rows) {
         if (!selectedByOrder[item.ORDER_ID]) {
-          selectedByOrder[item.ORDER_ID] = {
-            acId: item.AC_ID,
-            stId: item.ST_ID,
-            items: []
-          };
+          selectedByOrder[item.ORDER_ID] = { acId: item.AC_ID, stId: item.ST_ID, originAddressId: item.ORIGIN_ADDRESS_ID, items: [] };
         }
         selectedByOrder[item.ORDER_ID].items.push(item);
       }
 
-      // 4. ดำเนินการแยกคำสั่งซื้อตามแต่ละร้าน
       for (const oldOrderIdStr of Object.keys(selectedByOrder)) {
         const oldOrderId = Number(oldOrderIdStr);
         const orderInfo = selectedByOrder[oldOrderId];
         const selItems = orderInfo.items;
         const selDetailIds = selItems.map(it => it.ORDER_DETAIL_ID);
 
-        // ตรวจสอบจำนวนไอเทมทั้งหมดในบิล Cart เดิม
-        const allItemsRes = await connection.execute(
-          `SELECT ORDER_DETAIL_ID FROM ORDER_DETAIL WHERE ORDER_ID = :1`,
-          [oldOrderId]
-        );
+        const allItemsRes = await connection.execute(`SELECT ORDER_DETAIL_ID FROM ORDER_DETAIL WHERE ORDER_ID = :1`, [oldOrderId]);
         const allDetailIds = allItemsRes.rows.map(r => r.ORDER_DETAIL_ID);
 
         if (selDetailIds.length === allDetailIds.length) {
-          // เลือกครบทุกชิ้นในร้านนี้ -> อัปเดต ORDER เดิมเป็น 'Pending' ได้เลย
           await connection.execute(
             `UPDATE ORDERS 
              SET STATUS = 'Pending', 
                  ORDER_DATE = SYSDATE,
-                 TOTAL_PRICE = (SELECT NVL(SUM(QUANTITY * UNIT_PRICE), 0) FROM ORDER_DETAIL WHERE ORDER_ID = :1)
+                 TOTAL_PRICE = (SELECT NVL(SUM(QUANTITY * UNIT_PRICE), 0) FROM ORDER_DETAIL WHERE ORDER_ID = :1),
+                 ORIGIN_ADDRESS_ID = :2,
+                 DEST_ADDRESS_ID = :3,
+                 PAYMENT_METHOD = :4,
+                 PAYMENT_STATUS = 'Pending'
              WHERE ORDER_ID = :1`,
-            [oldOrderId]
+            [oldOrderId, orderInfo.originAddressId, destAddressId, paymentMethod || 'Cash']
           );
         } else {
-          // เลือกเฉพาะบางชิ้น -> แยกไอเทมที่เลือกไปสร้างเป็น ORDER ใหม่ ('Pending') และคงไอเทมที่เหลือไว้ใน Cart เดิม
           const selTotalPrice = selItems.reduce((sum, it) => sum + (it.QUANTITY * it.UNIT_PRICE), 0);
-
-          const newOrderRes = await connection.execute(
-            `SELECT NVL(MAX(ORDER_ID), 0) + 1 AS NEW_ID FROM ORDERS`
-          );
+          const newOrderRes = await connection.execute(`SELECT NVL(MAX(ORDER_ID), 0) + 1 AS NEW_ID FROM ORDERS`);
           const newOrderId = newOrderRes.rows[0].NEW_ID;
 
           await connection.execute(
-            `INSERT INTO ORDERS (ORDER_ID, AC_ID, ST_ID, ORDER_DATE, STATUS, TOTAL_PRICE)
-             VALUES (:1, :2, :3, SYSDATE, 'Pending', :4)`,
-            [newOrderId, orderInfo.acId, orderInfo.stId, selTotalPrice]
+            `INSERT INTO ORDERS (ORDER_ID, AC_ID, ST_ID, ORDER_DATE, STATUS, TOTAL_PRICE, ORIGIN_ADDRESS_ID, DEST_ADDRESS_ID, PAYMENT_METHOD, PAYMENT_STATUS)
+             VALUES (:1, :2, :3, SYSDATE, 'Pending', :4, :5, :6, :7, 'Pending')`,
+            [newOrderId, orderInfo.acId, orderInfo.stId, selTotalPrice, orderInfo.originAddressId, destAddressId, paymentMethod || 'Cash']
           );
 
-          // ย้ายรายการสินค้าที่เลือกไปยัง newOrderId
           for (const dtId of selDetailIds) {
-            await connection.execute(
-              `UPDATE ORDER_DETAIL SET ORDER_ID = :1 WHERE ORDER_DETAIL_ID = :2`,
-              [newOrderId, dtId]
-            );
+            await connection.execute(`UPDATE ORDER_DETAIL SET ORDER_ID = :1 WHERE ORDER_DETAIL_ID = :2`, [newOrderId, dtId]);
           }
 
-          // คำนวณยอดคงเหลือในบิล Cart เดิม
           await connection.execute(
-            `UPDATE ORDERS 
-             SET TOTAL_PRICE = (SELECT NVL(SUM(QUANTITY * UNIT_PRICE), 0) FROM ORDER_DETAIL WHERE ORDER_ID = :1)
-             WHERE ORDER_ID = :1`,
+            `UPDATE ORDERS SET TOTAL_PRICE = (SELECT NVL(SUM(QUANTITY * UNIT_PRICE), 0) FROM ORDER_DETAIL WHERE ORDER_ID = :1) WHERE ORDER_ID = :1`,
             [oldOrderId]
           );
         }
       }
-
       return res.json({ message: 'สั่งซื้อสินค้าที่เลือกสำเร็จ!' });
     }
 
-    // กรณีที่ 2: รองรับแบบเดิม (ส่ง orderIds ทั้งหมดมา)
     if (orderIds && Array.isArray(orderIds) && orderIds.length > 0) {
       for (let id of orderIds) {
         const checkStore = await connection.execute(
-          `SELECT s.ST_NAME, s.IS_OPEN FROM ORDERS o JOIN STORE s ON o.ST_ID = s.ST_ID WHERE o.ORDER_ID = :1`,
+          `SELECT s.ST_NAME, s.IS_OPEN, s.ADDRESS_ID FROM ORDERS o JOIN STORE s ON o.ST_ID = s.ST_ID WHERE o.ORDER_ID = :1`,
           [id]
         );
         if (checkStore.rows.length > 0 && checkStore.rows[0].IS_OPEN === 'N') {
-          return res.status(400).json({
-            error: `ไม่สามารถสั่งซื้อได้: ร้าน "${checkStore.rows[0].ST_NAME}" ปิดให้บริการชั่วคราว`
-          });
+          return res.status(400).json({ error: `ไม่สามารถสั่งซื้อได้: ร้าน "${checkStore.rows[0].ST_NAME}" ปิดให้บริการชั่วคราว` });
         }
-      }
-
-      for (let id of orderIds) {
         await connection.execute(
-          `UPDATE ORDERS SET STATUS = 'Pending', ORDER_DATE = SYSDATE WHERE ORDER_ID = :1`,
-          [id]
+          `UPDATE ORDERS SET STATUS = 'Pending', ORDER_DATE = SYSDATE, ORIGIN_ADDRESS_ID = :1, DEST_ADDRESS_ID = :2, PAYMENT_METHOD = :3, PAYMENT_STATUS = 'Pending' WHERE ORDER_ID = :4`,
+          [checkStore.rows[0].ADDRESS_ID, destAddressId, paymentMethod || 'Cash', id]
         );
       }
       return res.json({ message: 'สั่งซื้อสำเร็จ!' });
@@ -612,7 +578,7 @@ app.post('/api/auth/register', async (req, res) => {
 
     // แปลง birth_date ให้เป็น Date ถ้ามี
     await connection.execute(
-      `INSERT INTO ACCOUNT (AC_ID, USERNAME, PASSWORD, FNAME, LNAME, EMAIL, TYPE, BIRTH_DATE, GENDER, PHONE, REGISTED_DATE) 
+      `INSERT INTO ACCOUNT (AC_ID, USERNAME, PASSWORD, FNAME, LNAME, EMAIL, TYPE, BIRTH_DATE, GENDER, PHONE, REGISTERED_DATE) 
        VALUES (:1, :2, :3, :4, :5, :6, :7, TO_DATE(:8, 'YYYY-MM-DD'), :9, :10, SYSTIMESTAMP)`,
       [newId, username, password, fname, lname, email, type, birth_date || null, gender || null, phone || null]
     );
@@ -747,28 +713,57 @@ app.post('/api/account/switch-role', async (req, res) => {
 // API: สร้างร้านค้าใหม่สำหรับ Seller (Rating_point = 0, Selling_Rate = 2.5, IS_OPEN = 'Y', AC_ID = :acId)
 // =====================================
 app.post('/api/stores', async (req, res) => {
-  const { acId, stName, location } = req.body;
+  const { acId, stName, addressId, addressLine, subDistrict, district, province, zipCode, location } = req.body;
   let connection;
   try {
     connection = await oracledb.getConnection();
 
-    // 1. หาค่า ID ใหม่ของ STORE
+    let finalAddressId = addressId ? Number(addressId) : null;
+    const effectiveLine = addressLine || location || '';
+    const effectiveProvince = province || location || '';
+
+    // 1. ถ้าไม่ได้ส่ง addressId มาโดยตรง แต่ส่งรายละเอียดที่อยู่มา ให้สร้างที่อยู่ใหม่ใน ADDRESS (ADDRESS_TYPE = 'STORE')
+    if (!finalAddressId && (effectiveLine || effectiveProvince)) {
+      const addrIdRes = await connection.execute(`SELECT NVL(MAX(ADDRESS_ID), 0) + 1 AS NEW_ID FROM ADDRESS`);
+      finalAddressId = addrIdRes.rows[0].NEW_ID;
+
+      const insertAddrSql = `
+        INSERT INTO ADDRESS (ADDRESS_ID, AC_ID, ADDRESS_LINE, SUB_DISTRICT, DISTRICT, PROVINCE, ZIP_CODE, IS_DEFAULT, ADDRESS_TYPE)
+        VALUES (:1, :2, :3, :4, :5, :6, :7, 'N', 'STORE')
+      `;
+      await connection.execute(insertAddrSql, [
+        finalAddressId, acId, effectiveLine, subDistrict || '', district || '', effectiveProvince, zipCode || ''
+      ], { autoCommit: true });
+    }
+
+    if (!finalAddressId) {
+      return res.status(400).json({ error: "กรุณาระบุหรือเลือกที่อยู่ของร้านค้า" });
+    }
+
+    // 2. หา ST_ID ใหม่สำหรับร้าน
     const idRes = await connection.execute(`SELECT NVL(MAX(ST_ID), 0) + 1 AS NEW_ID FROM STORE`);
     const newStId = idRes.rows[0].NEW_ID;
 
-    // 2. บันทึกลงตาราง STORE โดยตั้ง Rating_point = 0, Selling_Rate = 2.5, IS_OPEN = 'Y' และผูก AC_ID
+    // 3. บันทึก STORE พร้อมลิงก์ไปยัง ADDRESS_ID
     const insertSql = `
-      INSERT INTO STORE (ST_ID, ST_NAME, LOCATION, RATING_POINT, SELLING_RATE, IS_OPEN, AC_ID)
+      INSERT INTO STORE (ST_ID, ST_NAME, ADDRESS_ID, RATING_POINT, SELLING_RATE, IS_OPEN, AC_ID)
       VALUES (:1, :2, :3, 0, 2.5, 'Y', :4)
     `;
-    await connection.execute(insertSql, [newStId, stName, location, acId]);
+    await connection.execute(insertSql, [newStId, stName, finalAddressId, acId], { autoCommit: true });
+
+    // 4. อัปเดตสถานะผู้ใช้เป็น 'Seller' หากยังเป็น 'Customer'
+    await connection.execute(
+      `UPDATE ACCOUNT SET TYPE = 'Seller' WHERE AC_ID = :1 AND TYPE = 'Customer'`,
+      [acId],
+      { autoCommit: true }
+    );
 
     res.json({
-      message: `สร้างร้านค้า "${stName}" สำเร็จ! (ร้านเปิดให้บริการ)`,
+      message: `เปิดร้านค้า "${stName}" สำเร็จ! (สถานะร้านพร้อมขาย)`,
       store: {
         ST_ID: newStId,
         ST_NAME: stName,
-        LOCATION: location,
+        ADDRESS_ID: finalAddressId,
         RATING_POINT: 0,
         SELLING_RATE: 2.5,
         IS_OPEN: 'Y',
@@ -776,6 +771,7 @@ app.post('/api/stores', async (req, res) => {
       }
     });
   } catch (err) {
+    console.error("Create store error:", err);
     res.status(500).json({ error: err.message });
   } finally {
     if (connection) { try { await connection.close(); } catch (e) { } }
@@ -792,7 +788,8 @@ app.put('/api/stores/:stId/status', async (req, res) => {
     connection = await oracledb.getConnection();
     await connection.execute(
       `UPDATE STORE SET IS_OPEN = :1 WHERE ST_ID = :2`,
-      [isOpen, req.params.stId]
+      [isOpen, req.params.stId],
+      { autoCommit: true }
     );
     res.json({
       message: `ร้านค้าถูกตั้งค่าเป็น ${isOpen === 'Y' ? 'เปิดให้บริการ' : 'ปิดให้บริการ'} เรียบร้อยแล้ว`,
@@ -809,36 +806,66 @@ app.put('/api/stores/:stId/status', async (req, res) => {
 // API: แก้ไขชื่อร้านค้าและที่ตั้ง (เฉพาะเจ้าของร้าน หรือ Admin)
 // =====================================
 app.put('/api/stores/:stId', async (req, res) => {
-  const { stName, location, acId } = req.body;
+  const { stName, addressId, addressLine, subDistrict, district, province, zipCode, location, acId } = req.body;
   let connection;
   try {
     connection = await oracledb.getConnection();
 
-    // 1. ตรวจสอบว่ามีร้านนี้หรือไม่
-    const storeRes = await connection.execute(`SELECT AC_ID FROM STORE WHERE ST_ID = :1`, [req.params.stId]);
+    // 1. ตรวจสอบเจ้าของร้าน
+    const storeRes = await connection.execute(`SELECT AC_ID, ADDRESS_ID FROM STORE WHERE ST_ID = :1`, [req.params.stId]);
     if (storeRes.rows.length === 0) {
-      return res.status(404).json({ error: "ไม่พบร้านค้านี้ในระบบ" });
+      return res.status(404).json({ error: "ไม่พบร้านค้านี้" });
     }
     const storeOwner = storeRes.rows[0].AC_ID;
+    const currentAddressId = storeRes.rows[0].ADDRESS_ID;
 
-    // 2. ตรวจสอบสิทธิ์ (เจ้าของร้าน หรือ Admin)
+    // 2. สิทธิการแก้ไข
     const userRes = await connection.execute(`SELECT TYPE FROM ACCOUNT WHERE AC_ID = :1`, [acId]);
     const userType = userRes.rows.length > 0 ? userRes.rows[0].TYPE : null;
 
     if (storeOwner !== Number(acId) && userType !== 'Admin') {
-      return res.status(403).json({ error: "คุณไม่มีสิทธิ์แก้ไขข้อมูลร้านนี้ (เฉพาะเจ้าของร้านหรือ Admin เท่านั้น)" });
+      return res.status(403).json({ error: "ไม่มีสิทธิ์แก้ไขร้านค้านี้ (คุณไม่ใช่เจ้าของ หรือ Admin)" });
     }
 
-    // 3. บันทึกข้อมูล
+    // 3. จัดการที่อยู่ร้านค้า (ADDRESS_ID)
+    let targetAddressId = addressId ? Number(addressId) : currentAddressId;
+    const effectiveLine = addressLine || location || '';
+    const effectiveProvince = province || location || '';
+
+    if (addressId) {
+      targetAddressId = Number(addressId);
+    } else if (effectiveLine || effectiveProvince) {
+      if (currentAddressId) {
+        const updateAddrSql = `
+          UPDATE ADDRESS
+          SET ADDRESS_LINE = :1, SUB_DISTRICT = :2, DISTRICT = :3, PROVINCE = :4, ZIP_CODE = :5
+          WHERE ADDRESS_ID = :6
+        `;
+        await connection.execute(updateAddrSql, [
+          effectiveLine, subDistrict || '', district || '', effectiveProvince, zipCode || '', currentAddressId
+        ], { autoCommit: true });
+        targetAddressId = currentAddressId;
+      } else {
+        const addrIdRes = await connection.execute(`SELECT NVL(MAX(ADDRESS_ID), 0) + 1 AS NEW_ID FROM ADDRESS`);
+        targetAddressId = addrIdRes.rows[0].NEW_ID;
+        const insertAddrSql = `
+          INSERT INTO ADDRESS (ADDRESS_ID, AC_ID, ADDRESS_LINE, SUB_DISTRICT, DISTRICT, PROVINCE, ZIP_CODE, IS_DEFAULT, ADDRESS_TYPE)
+          VALUES (:1, :2, :3, :4, :5, :6, :7, 'N', 'STORE')
+        `;
+        await connection.execute(insertAddrSql, [
+          targetAddressId, acId, effectiveLine, subDistrict || '', district || '', effectiveProvince, zipCode || ''
+        ], { autoCommit: true });
+      }
+    }
+
+    // 4. อัปเดตข้อมูล STORE
     await connection.execute(
-      `UPDATE STORE SET ST_NAME = :1, LOCATION = :2 WHERE ST_ID = :3`,
-      [stName, location, req.params.stId]
+      `UPDATE STORE SET ST_NAME = :1, ADDRESS_ID = :2 WHERE ST_ID = :3`,
+      [stName, targetAddressId, req.params.stId],
+      { autoCommit: true }
     );
 
-    res.json({
-      message: "อัปเดตข้อมูลร้านค้าเรียบร้อยแล้ว!",
-      store: { ST_ID: req.params.stId, ST_NAME: stName, LOCATION: location }
-    });
+    res.json({ message: "อัปเดตข้อมูลร้านค้าเรียบร้อยแล้ว!" });
   } catch (err) {
     res.status(500).json({ error: err.message });
   } finally {
@@ -853,7 +880,14 @@ app.get('/api/stores', async (req, res) => {
   let connection;
   try {
     connection = await oracledb.getConnection();
-    const result = await connection.execute(`SELECT * FROM STORE ORDER BY ST_ID DESC`);
+    const result = await connection.execute(`
+      SELECT s.ST_ID, s.ST_NAME, s.RATING_POINT, s.SELLING_RATE, s.IS_OPEN, s.AC_ID, s.ADDRESS_ID,
+             a.ADDRESS_LINE, a.SUB_DISTRICT, a.DISTRICT, a.PROVINCE, a.ZIP_CODE,
+             NVL(a.PROVINCE, 'ไม่ระบุที่อยู่') AS LOCATION
+      FROM STORE s
+      LEFT JOIN ADDRESS a ON s.ADDRESS_ID = a.ADDRESS_ID
+      ORDER BY s.ST_ID DESC
+    `);
     res.json(result.rows);
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -885,7 +919,14 @@ app.get('/api/stores/:stId', async (req, res) => {
   let connection;
   try {
     connection = await oracledb.getConnection();
-    const result = await connection.execute(`SELECT * FROM STORE WHERE ST_ID = :1`, [req.params.stId]);
+    const result = await connection.execute(`
+      SELECT s.ST_ID, s.ST_NAME, s.RATING_POINT, s.SELLING_RATE, s.IS_OPEN, s.AC_ID, s.ADDRESS_ID,
+             a.ADDRESS_LINE, a.SUB_DISTRICT, a.DISTRICT, a.PROVINCE, a.ZIP_CODE,
+             NVL(a.PROVINCE, 'ไม่ระบุที่อยู่') AS LOCATION
+      FROM STORE s
+      LEFT JOIN ADDRESS a ON s.ADDRESS_ID = a.ADDRESS_ID
+      WHERE s.ST_ID = :1
+    `, [req.params.stId]);
     if (result.rows.length > 0) {
       res.json(result.rows[0]);
     } else {
@@ -907,7 +948,7 @@ app.get('/api/stores/:stId/products', async (req, res) => {
     connection = await oracledb.getConnection();
     const result = await connection.execute(
       `SELECT p.PRODUCT_ID, p.PRODUCT_NAME, p.TYPE, p.PRODUCT_PRICE, p.STOCK, 
-              p.IMAGE_URL, p.DESCRIPTION, p.WEIGHT, p.SIZE_DIM, p.ST_ID
+              p.IMAGE_URL, p.DESCRIPTION, p.WEIGHT, p.WIDTH, p.LENGTH, p.HEIGHT, p.ST_ID
        FROM PRODUCT p 
        WHERE p.ST_ID = :1 
        ORDER BY p.PRODUCT_ID DESC`,
@@ -925,7 +966,7 @@ app.get('/api/stores/:stId/products', async (req, res) => {
 // API: เพิ่มสินค้าใหม่ลงในร้านค้า (เฉพาะเจ้าของร้านหรือ Admin)
 // =====================================
 app.post('/api/products', async (req, res) => {
-  const { stId, productName, type, price, stock, imageUrl, description, weight, sizeDim, acId } = req.body;
+  const { stId, productName, type, price, stock, imageUrl, description, weight, width, length, height, acId } = req.body;
   let connection;
   try {
     connection = await oracledb.getConnection();
@@ -952,10 +993,10 @@ app.post('/api/products', async (req, res) => {
     const insertSql = `
       INSERT INTO PRODUCT (
         PRODUCT_ID, PRODUCT_NAME, TYPE, PRODUCT_PRICE, STOCK, 
-        IMAGE_URL, DESCRIPTION, WEIGHT, SIZE_DIM, ST_ID
+        IMAGE_URL, DESCRIPTION, WEIGHT, WIDTH, LENGTH, HEIGHT, ST_ID
       ) VALUES (
         :1, :2, :3, :4, :5, 
-        :6, :7, :8, :9, :10
+        :6, :7, :8, :9, :10, :11, :12
       )
     `;
     await connection.execute(insertSql, [
@@ -967,7 +1008,9 @@ app.post('/api/products', async (req, res) => {
       imageUrl || null,
       description || null,
       weight || 0,
-      sizeDim || 0,
+      width || 0,
+      length || 0,
+      height || 0,
       stId
     ]);
 
@@ -983,7 +1026,7 @@ app.post('/api/products', async (req, res) => {
 // API: แก้ไขข้อมูลสินค้า (เฉพาะเจ้าของร้านหรือ Admin)
 // =====================================
 app.put('/api/products/:id', async (req, res) => {
-  const { productName, type, price, stock, imageUrl, description, weight, sizeDim, acId } = req.body;
+  const { productName, type, price, stock, imageUrl, description, weight, width, length, height, acId } = req.body;
   let connection;
   try {
     connection = await oracledb.getConnection();
@@ -1016,8 +1059,10 @@ app.put('/api/products/:id', async (req, res) => {
           IMAGE_URL = :5, 
           DESCRIPTION = :6, 
           WEIGHT = :7, 
-          SIZE_DIM = :8
-      WHERE PRODUCT_ID = :9
+          WIDTH = :8,
+          LENGTH = :9,
+          HEIGHT = :10
+      WHERE PRODUCT_ID = :11
     `;
     await connection.execute(updateSql, [
       productName,
@@ -1027,7 +1072,9 @@ app.put('/api/products/:id', async (req, res) => {
       imageUrl || null,
       description || null,
       weight || 0,
-      sizeDim || 0,
+      width || 0,
+      length || 0,
+      height || 0,
       req.params.id
     ]);
 
@@ -1071,6 +1118,100 @@ app.delete('/api/products/:id', async (req, res) => {
     res.json({ message: "ลบสินค้าสำเร็จเรียบร้อยแล้ว!" });
   } catch (err) {
     res.status(500).json({ error: "ไม่สามารถลบสินค้านี้ได้ เนื่องจากอาจมีประวัติอยู่ในใบสั่งซื้อ (Order Detail)" });
+  } finally {
+    if (connection) { try { await connection.close(); } catch (e) { } }
+  }
+});
+
+
+// =====================================
+// API: ดึงที่อยู่ของผู้ใช้ (รองรับการกรองด้วย ?type=)
+// =====================================
+app.get('/api/address/:acId', async (req, res) => {
+  let connection;
+  try {
+    connection = await oracledb.getConnection();
+    const { type } = req.query;
+    let sql = `SELECT * FROM ADDRESS WHERE AC_ID = :acId`;
+    let binds = { acId: req.params.acId };
+
+    if (type) {
+      sql += ` AND ADDRESS_TYPE = :type`;
+      binds.type = type;
+    }
+    sql += ` ORDER BY IS_DEFAULT DESC, ADDRESS_ID ASC`;
+
+    const result = await connection.execute(sql, binds);
+    res.json(result.rows);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  } finally {
+    if (connection) { try { await connection.close(); } catch (e) { } }
+  }
+});
+
+// =====================================
+// API: เพิ่มที่อยู่ใหม่
+// =====================================
+app.post('/api/address', async (req, res) => {
+  const { acId, addressLine, subDistrict, district, province, zipCode, isDefault, addressType } = req.body;
+  let connection;
+  try {
+    connection = await oracledb.getConnection();
+
+    // 1. หา ADDRESS_ID ใหม่
+    const idRes = await connection.execute(`SELECT NVL(MAX(ADDRESS_ID), 0) + 1 AS NEW_ID FROM ADDRESS`);
+    const newAddrId = idRes.rows[0].NEW_ID;
+
+    // 2. ถ้าตั้งเป็นค่าเริ่มต้น และเป็น HOME ให้ล้างค่าเริ่มต้นของ HOME อื่นๆ
+    const type = addressType || 'HOME';
+    if (isDefault === 'Y' && type === 'HOME') {
+      await connection.execute(`UPDATE ADDRESS SET IS_DEFAULT = 'N' WHERE AC_ID = :1 AND ADDRESS_TYPE = 'HOME'`, [acId]);
+    }
+
+    // 3. บันทึกลงตาราง ADDRESS
+    const insertSql = `
+      INSERT INTO ADDRESS (ADDRESS_ID, AC_ID, ADDRESS_LINE, SUB_DISTRICT, DISTRICT, PROVINCE, ZIP_CODE, IS_DEFAULT, ADDRESS_TYPE)
+      VALUES (:1, :2, :3, :4, :5, :6, :7, :8, :9)
+    `;
+    await connection.execute(insertSql, [
+      newAddrId, acId, addressLine, subDistrict, district, province, zipCode, isDefault || 'N', type
+    ]);
+
+    res.json({ message: 'เพิ่มที่อยู่สำเร็จ!', addressId: newAddrId });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  } finally {
+    if (connection) { try { await connection.close(); } catch (e) { } }
+  }
+});
+
+// =====================================
+// API: แก้ไขที่อยู่
+// =====================================
+app.put('/api/address/:id', async (req, res) => {
+  const { acId, addressLine, subDistrict, district, province, zipCode, isDefault, addressType } = req.body;
+  let connection;
+  try {
+    connection = await oracledb.getConnection();
+
+    const type = addressType || 'HOME';
+    if (isDefault === 'Y' && type === 'HOME') {
+      await connection.execute(`UPDATE ADDRESS SET IS_DEFAULT = 'N' WHERE AC_ID = :1 AND ADDRESS_TYPE = 'HOME'`, [acId]);
+    }
+
+    const updateSql = `
+      UPDATE ADDRESS 
+      SET ADDRESS_LINE = :1, SUB_DISTRICT = :2, DISTRICT = :3, PROVINCE = :4, ZIP_CODE = :5, IS_DEFAULT = :6, ADDRESS_TYPE = :7
+      WHERE ADDRESS_ID = :8 AND AC_ID = :9
+    `;
+    await connection.execute(updateSql, [
+      addressLine, subDistrict, district, province, zipCode, isDefault || 'N', type, req.params.id, acId
+    ]);
+
+    res.json({ message: 'อัปเดตที่อยู่สำเร็จ!' });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
   } finally {
     if (connection) { try { await connection.close(); } catch (e) { } }
   }

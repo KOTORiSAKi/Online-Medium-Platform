@@ -8,6 +8,9 @@ function Market() {
   const [loading, setLoading] = useState(true);
   const [selectedDetailIds, setSelectedDetailIds] = useState([]);
   const [isSelectionInitialized, setIsSelectionInitialized] = useState(false);
+  const [addresses, setAddresses] = useState([]);
+  const [destAddressId, setDestAddressId] = useState('');
+  const [paymentMethod, setPaymentMethod] = useState('Cash');
 
   // ฟังก์ชันดึงข้อมูลตะกร้าจาก DB (รวม IS_OPEN ของร้านค้า)
   const fetchCartData = useCallback((acId) => {
@@ -54,6 +57,16 @@ function Market() {
     }
     setUser(loggedInUser);
     fetchCartData(loggedInUser.AC_ID);
+    
+    fetch(`http://localhost:5000/api/address/${loggedInUser.AC_ID}?type=HOME`)
+      .then(res => res.json())
+      .then(data => {
+        setAddresses(data);
+        const def = data.find(a => a.IS_DEFAULT === 'Y');
+        if (def) setDestAddressId(def.ADDRESS_ID);
+        else if (data.length > 0) setDestAddressId(data[0].ADDRESS_ID);
+      })
+      .catch(console.error);
   }, [navigate, fetchCartData]);
 
   // ฟังก์ชันจัดการเพิ่มลดจำนวนและลบ
@@ -151,6 +164,14 @@ function Market() {
       alert("กรุณาเลือกสินค้าอย่างน้อย 1 ชิ้นที่ต้องการสั่งซื้อ");
       return;
     }
+    if (!destAddressId) {
+      alert("กรุณาเลือกที่อยู่จัดส่ง");
+      return;
+    }
+    if (false) {
+      alert("กรุณาเลือกสินค้าอย่างน้อย 1 ชิ้นที่ต้องการสั่งซื้อ");
+      return;
+    }
 
     // ป้องกันกรณีที่มีสินค้าที่เลือกร้านปิดอยู่
     const hasSelectedClosed = selectedItems.some((item) => item.IS_OPEN === "N");
@@ -163,7 +184,7 @@ function Market() {
       const res = await fetch("http://localhost:5000/api/cart/checkout", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ selectedDetailIds }),
+        body: JSON.stringify({ selectedDetailIds, destAddressId, paymentMethod }),
       });
       const data = await res.json();
       if (res.ok) {
@@ -194,7 +215,40 @@ function Market() {
           style={{ textAlign: "center", padding: "3rem 0", color: "#64748b" }}
         >
           <p>ยังไม่มีสินค้าในตะกร้า</p>
-          <button
+          
+            <div style={{ marginBottom: "1rem" }}>
+              <label style={{ display: "block", fontSize: "0.85rem", fontWeight: "bold", marginBottom: "0.4rem" }}>
+                📍 เลือกที่อยู่จัดส่ง:
+              </label>
+              <select
+                value={destAddressId}
+                onChange={(e) => setDestAddressId(e.target.value)}
+                style={{ width: "100%", padding: "0.6rem", borderRadius: "6px", border: "1px solid #cbd5e1", fontSize: "0.9rem" }}
+              >
+                <option value="" disabled>-- กรุณาเลือกที่อยู่ --</option>
+                {addresses.map(a => (
+                  <option key={a.ADDRESS_ID} value={a.ADDRESS_ID}>
+                    {a.ADDRESS_LINE} {a.SUB_DISTRICT} {a.DISTRICT} {a.PROVINCE} {a.ZIP_CODE}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div style={{ marginBottom: "1.5rem" }}>
+              <label style={{ display: "block", fontSize: "0.85rem", fontWeight: "bold", marginBottom: "0.4rem" }}>
+                💳 เลือกช่องทางการชำระเงิน:
+              </label>
+              <select
+                value={paymentMethod}
+                onChange={(e) => setPaymentMethod(e.target.value)}
+                style={{ width: "100%", padding: "0.6rem", borderRadius: "6px", border: "1px solid #cbd5e1", fontSize: "0.9rem" }}
+              >
+                <option value="Cash">เงินสด (Cash)</option>
+                <option value="Credit Card">บัตรเครดิต (Credit Card)</option>
+                <option value="Bank Transfer">โอนเงิน (Bank Transfer)</option>
+              </select>
+            </div>
+<button
             onClick={() => navigate("/")}
             style={{ padding: "0.5rem 1rem", cursor: "pointer" }}
           >

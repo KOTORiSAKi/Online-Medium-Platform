@@ -18,7 +18,8 @@ function ProductManager() {
 
   // สเตทสำหรับ Modal แก้ไขข้อมูลร้านค้า (ST_NAME, LOCATION)
   const [isStoreModalOpen, setIsStoreModalOpen] = useState(false);
-  const [storeForm, setStoreForm] = useState({ stName: "", location: "" });
+  const [storeForm, setStoreForm] = useState({ stName: "", addressId: "" });
+  const [userAddresses, setUserAddresses] = useState([]);
 
   const [form, setForm] = useState({
     productName: "",
@@ -28,7 +29,9 @@ function ProductManager() {
     imageUrl: "",
     description: "",
     weight: "",
-    sizeDim: "",
+    width: "",
+    length: "",
+    height: "",
   });
 
   // โหลดข้อมูลร้านค้าและตรวจสอบสิทธิ์
@@ -78,20 +81,25 @@ function ProductManager() {
   }, [navigate, fetchStoreAndProducts]);
 
   // เปิด Modal แก้ไขร้านค้า
-  const handleOpenEditStore = () => {
+  const handleOpenEditStore = async () => {
     if (!store) return;
     setStoreForm({
       stName: store.ST_NAME || "",
-      location: store.LOCATION || "",
+      addressId: store.ADDRESS_ID || "",
     });
     setIsStoreModalOpen(true);
+    try {
+      const res = await fetch(`http://localhost:5000/api/address/${user.AC_ID}`);
+      const data = await res.json();
+      setUserAddresses(data);
+    } catch (e) { }
   };
 
   // บันทึกแก้ไขข้อมูลร้านค้า
   const handleSubmitStore = async (e) => {
     e.preventDefault();
-    if (!storeForm.stName.trim() || !storeForm.location.trim()) {
-      alert("กรุณากรอกชื่อร้านและสถานที่ตั้งให้ครบถ้วน");
+    if (!storeForm.stName.trim() || !storeForm.addressId) {
+      alert("กรุณากรอกชื่อร้านและเลือกสถานที่ตั้งให้ครบถ้วน");
       return;
     }
     try {
@@ -100,7 +108,7 @@ function ProductManager() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           stName: storeForm.stName,
-          location: storeForm.location,
+          addressId: storeForm.addressId,
           acId: user.AC_ID,
         }),
       });
@@ -110,7 +118,7 @@ function ProductManager() {
         setStore((prev) => ({
           ...prev,
           ST_NAME: storeForm.stName,
-          LOCATION: storeForm.location,
+          ADDRESS_ID: storeForm.addressId,
         }));
         setIsStoreModalOpen(false);
       } else {
@@ -133,7 +141,9 @@ function ProductManager() {
       imageUrl: "",
       description: "",
       weight: "",
-      sizeDim: "",
+      width: "",
+      length: "",
+      height: "",
     });
     setIsModalOpen(true);
   };
@@ -150,7 +160,9 @@ function ProductManager() {
       imageUrl: item.IMAGE_URL || "",
       description: item.DESCRIPTION || "",
       weight: item.WEIGHT || "",
-      sizeDim: item.SIZE_DIM || "",
+      width: item.WIDTH || "",
+      length: item.LENGTH || "",
+      height: item.HEIGHT || "",
     });
     setIsModalOpen(true);
   };
@@ -242,7 +254,7 @@ function ProductManager() {
             📦 จัดการสินค้า: {store?.ST_NAME} <span style={{ fontSize: "1rem", color: "#64748b" }}>#{store?.ST_ID}</span>
           </h1>
           <p style={{ margin: "0.25rem 0 0 0", color: "#64748b", fontSize: "0.85rem" }}>
-            📍 ที่ตั้ง: {store?.LOCATION} • สถานะร้าน:{" "}
+            📍 ที่ตั้งร้าน: {store?.ADDRESS_LINE ? `${store.ADDRESS_LINE} ${store.SUB_DISTRICT || ""} ${store.DISTRICT || ""} ${store.PROVINCE || ""} ${store.ZIP_CODE || ""}`.trim() : (store?.LOCATION || (store?.ADDRESS_ID ? `รหัสที่อยู่ #${store.ADDRESS_ID}` : "ไม่ระบุที่อยู่"))} • สถานะร้าน:{" "}
             <strong style={{ color: store?.IS_OPEN === "Y" ? "#16a34a" : "#dc2626" }}>
               {store?.IS_OPEN === "Y" ? "🟢 เปิดให้บริการ" : "🔴 ปิดให้บริการ"}
             </strong>
@@ -443,7 +455,7 @@ function ProductManager() {
                 </div>
               </div>
 
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: "0.75rem" }}>
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0.75rem" }}>
                 <div>
                   <label style={{ fontSize: "0.85rem", fontWeight: "bold" }}>สต็อก (STOCK) *:</label>
                   <input
@@ -466,16 +478,19 @@ function ProductManager() {
                     style={{ width: "100%", padding: "0.55rem", marginTop: "0.2rem", borderRadius: "6px", border: "1px solid #cbd5e1", boxSizing: "border-box" }}
                   />
                 </div>
+              </div>
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: "0.75rem" }}>
                 <div>
-                  <label style={{ fontSize: "0.85rem", fontWeight: "bold" }}>ขนาด (SIZE_DIM):</label>
-                  <input
-                    type="number"
-                    step="0.01"
-                    placeholder="cm"
-                    value={form.sizeDim}
-                    onChange={(e) => setForm({ ...form, sizeDim: e.target.value })}
-                    style={{ width: "100%", padding: "0.55rem", marginTop: "0.2rem", borderRadius: "6px", border: "1px solid #cbd5e1", boxSizing: "border-box" }}
-                  />
+                  <label style={{ fontSize: "0.85rem", fontWeight: "bold" }}>กว้าง (ซม.):</label>
+                  <input type="number" step="0.01" placeholder="cm" value={form.width} onChange={(e) => setForm({ ...form, width: e.target.value })} style={{ width: "100%", padding: "0.55rem", marginTop: "0.2rem", borderRadius: "6px", border: "1px solid #cbd5e1", boxSizing: "border-box" }} />
+                </div>
+                <div>
+                  <label style={{ fontSize: "0.85rem", fontWeight: "bold" }}>ยาว (ซม.):</label>
+                  <input type="number" step="0.01" placeholder="cm" value={form.length} onChange={(e) => setForm({ ...form, length: e.target.value })} style={{ width: "100%", padding: "0.55rem", marginTop: "0.2rem", borderRadius: "6px", border: "1px solid #cbd5e1", boxSizing: "border-box" }} />
+                </div>
+                <div>
+                  <label style={{ fontSize: "0.85rem", fontWeight: "bold" }}>สูง (ซม.):</label>
+                  <input type="number" step="0.01" placeholder="cm" value={form.height} onChange={(e) => setForm({ ...form, height: e.target.value })} style={{ width: "100%", padding: "0.55rem", marginTop: "0.2rem", borderRadius: "6px", border: "1px solid #cbd5e1", boxSizing: "border-box" }} />
                 </div>
               </div>
 
@@ -567,15 +582,22 @@ function ProductManager() {
 
               <div>
                 <label style={{ display: "block", fontSize: "0.85rem", fontWeight: "bold", color: "#334155" }}>
-                  สถานที่ตั้ง (LOCATION):
+                  สถานที่ตั้ง (ที่อยู่):
                 </label>
-                <input
-                  type="text"
+                <select
                   required
-                  value={storeForm.location}
-                  onChange={(e) => setStoreForm({ ...storeForm, location: e.target.value })}
+                  value={storeForm.addressId}
+                  onChange={(e) => setStoreForm({ ...storeForm, addressId: e.target.value })}
                   style={{ width: "100%", padding: "0.6rem", marginTop: "0.3rem", borderRadius: "6px", border: "1px solid #cbd5e1", boxSizing: "border-box" }}
-                />
+                >
+                  <option value="" disabled>เลือกที่อยู่ของร้านค้า</option>
+                  {userAddresses.map(addr => (
+                    <option key={addr.ADDRESS_ID} value={addr.ADDRESS_ID}>
+                      {addr.ADDRESS_LINE} {addr.SUB_DISTRICT} {addr.DISTRICT} {addr.PROVINCE} {addr.ZIP_CODE}
+                    </option>
+                  ))}
+                </select>
+                <p style={{ fontSize: "0.75rem", color: "#64748b", marginTop: "4px" }}>* หากต้องการเพิ่มที่อยู่ใหม่ ให้ไปที่หน้าจัดการโปรไฟล์</p>
               </div>
 
               <div style={{ display: "flex", justifyContent: "flex-end", gap: "0.5rem", marginTop: "1rem" }}>

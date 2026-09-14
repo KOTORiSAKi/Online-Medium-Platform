@@ -153,6 +153,10 @@ function Product() {
           >
             <h4>รายละเอียดสินค้า:</h4>
             <p>{product.DESCRIPTION || "ไม่มีคำอธิบาย"}</p>
+            <ul style={{ paddingLeft: "20px", marginTop: "10px", fontSize: "0.9rem" }}>
+              <li><strong>น้ำหนัก:</strong> {product.WEIGHT ? product.WEIGHT + " kg" : "ไม่ระบุ"}</li>
+              <li><strong>ขนาด (กว้าง x ยาว x สูง):</strong> {product.WIDTH && product.LENGTH && product.HEIGHT ? `${product.WIDTH} x ${product.LENGTH} x ${product.HEIGHT} cm` : "ไม่ระบุ"}</li>
+            </ul>
           </div>
 
           <div style={{ display: "flex", gap: "1rem", marginTop: "auto" }}>

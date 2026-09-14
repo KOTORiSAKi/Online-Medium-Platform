@@ -6,6 +6,11 @@ function Profile() {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
 
+  // Address States
+  const [addresses, setAddresses] = useState([]);
+  const [addressForm, setAddressForm] = useState({ id: null, addressLine: "", subDistrict: "", district: "", province: "", zipCode: "", isDefault: "N" });
+  const [isAddressModalOpen, setIsAddressModalOpen] = useState(false);
+
   // สเตทสำหรับโหมดแก้ไขข้อมูล
   const [editMode, setEditMode] = useState(false);
   const [editForm, setEditForm] = useState({
@@ -24,14 +29,14 @@ function Profile() {
   const [switchPassword, setSwitchPassword] = useState("");
 
   // สเตทสำหรับร้านค้า
-  const [storeForm, setStoreForm] = useState({ stName: "", location: "" });
+  const [storeForm, setStoreForm] = useState({ stName: "", addressId: "" });
   const [stores, setStores] = useState([]);
   const [storeLoading, setStoreLoading] = useState(false);
   const [searchQuery, setSearchQuery] = useState(""); // สำหรับ Admin / Employee ค้นหาร้าน
 
   // สเตทสำหรับแก้ไขชื่อร้านและที่อยู่ร้าน
   const [editStoreModalOpen, setEditStoreModalOpen] = useState(false);
-  const [storeEditForm, setStoreEditForm] = useState({ stId: null, stName: "", location: "" });
+  const [storeEditForm, setStoreEditForm] = useState({ stId: null, stName: "", addressId: "" });
 
   // ฟังก์ชันดึงข้อมูลบัญชีล่าสุดจาก DB
   const fetchAccount = useCallback(async (acId) => {
@@ -46,6 +51,19 @@ function Profile() {
       console.error("Fetch account failed:", err);
     } finally {
       setLoading(false);
+    }
+  }, []);
+
+  // ฟังก์ชันดึงข้อมูลที่อยู่ทั้งหมดของผู้ใช้
+  const fetchAddresses = useCallback(async (acId) => {
+    try {
+      const res = await fetch(`http://localhost:5000/api/address/${acId}`);
+      if (res.ok) {
+        const data = await res.json();
+        setAddresses(data);
+      }
+    } catch (err) {
+      console.error("Fetch addresses failed:", err);
     }
   }, []);
 
@@ -73,7 +91,8 @@ function Profile() {
     }
     fetchAccount(loggedInUser.AC_ID);
     fetchStores();
-  }, [navigate, fetchAccount, fetchStores]);
+    fetchAddresses(loggedInUser.AC_ID);
+  }, [navigate, fetchAccount, fetchStores, fetchAddresses]);
 
   // ตั้งค่าฟอร์มแก้ไขเมื่อเปิดโหมดแก้ไข
   useEffect(() => {
@@ -168,8 +187,16 @@ function Profile() {
   // 3. สร้างร้านค้าใหม่ (เฉพาะ Seller)
   const handleCreateStore = async (e) => {
     e.preventDefault();
-    if (!storeForm.stName.trim() || !storeForm.location.trim()) {
-      alert("กรุณากรอกชื่อร้านค้าและที่ตั้งร้านค้าให้ครบถ้วน");
+    if (!storeForm.stName.trim()) {
+      alert("กรุณากรอกชื่อร้านค้า");
+      return;
+    }
+    if (!storeForm.addressId) {
+      if (addresses.length === 0) {
+        alert("คุณยังไม่มีที่อยู่ในระบบ กรุณากด '+ เพิ่มที่อยู่ใหม่' ด้านบนก่อนเปิดร้านค้า");
+      } else {
+        alert("กรุณาเลือกที่อยู่สำหรับร้านค้า");
+      }
       return;
     }
 
@@ -179,15 +206,15 @@ function Profile() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           acId: user.AC_ID,
-          stName: storeForm.stName,
-          location: storeForm.location,
+          stName: storeForm.stName.trim(),
+          addressId: storeForm.addressId,
         }),
       });
 
       const data = await res.json();
       if (res.ok) {
         alert(data.message);
-        setStoreForm({ stName: "", location: "" });
+        setStoreForm({ stName: "", addressId: "" });
         fetchStores();
         fetchAccount(user.AC_ID);
       } else {
@@ -225,15 +252,19 @@ function Profile() {
 
   // 4.1 ฟังก์ชันเปิด Modal แก้ไขชื่อและที่อยู่ร้าน
   const handleOpenEditStore = (s) => {
-    setStoreEditForm({ stId: s.ST_ID, stName: s.ST_NAME, location: s.LOCATION });
+    setStoreEditForm({
+      stId: s.ST_ID,
+      stName: s.ST_NAME || "",
+      addressId: s.ADDRESS_ID ? String(s.ADDRESS_ID) : "",
+    });
     setEditStoreModalOpen(true);
   };
 
   // 4.2 บันทึกการแก้ไขชื่อและที่อยู่ร้านค้า
   const handleSaveStore = async (e) => {
     e.preventDefault();
-    if (!storeEditForm.stName.trim() || !storeEditForm.location.trim()) {
-      alert("กรุณากรอกชื่อร้านค้าและสถานที่ตั้งให้ครบถ้วน");
+    if (!storeEditForm.stName.trim() || !storeEditForm.addressId) {
+      alert("กรุณากรอกชื่อร้านค้าและเลือกสถานที่ตั้งให้ครบถ้วน");
       return;
     }
 
@@ -242,8 +273,8 @@ function Profile() {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          stName: storeEditForm.stName,
-          location: storeEditForm.location,
+          stName: storeEditForm.stName.trim(),
+          addressId: storeEditForm.addressId,
           acId: user.AC_ID,
         }),
       });
@@ -255,6 +286,59 @@ function Profile() {
         fetchStores();
       } else {
         alert(data.error || "แก้ไขข้อมูลร้านไม่สำเร็จ");
+      }
+    } catch (err) {
+      alert("เชื่อมต่อเซิร์ฟเวอร์ไม่ได้");
+    }
+  };
+
+  // จัดการที่อยู่ (Address Functions)
+  const handleOpenAddressModal = (addr = null) => {
+    if (addr) {
+      setAddressForm({
+        id: addr.ADDRESS_ID,
+        addressLine: addr.ADDRESS_LINE || "",
+        subDistrict: addr.SUB_DISTRICT || "",
+        district: addr.DISTRICT || "",
+        province: addr.PROVINCE || "",
+        zipCode: addr.ZIP_CODE || "",
+        isDefault: addr.IS_DEFAULT || "N"
+      });
+    } else {
+      setAddressForm({ id: null, addressLine: "", subDistrict: "", district: "", province: "", zipCode: "", isDefault: "N" });
+    }
+    setIsAddressModalOpen(true);
+  };
+
+  const handleSaveAddress = async (e) => {
+    e.preventDefault();
+    const url = addressForm.id
+      ? `http://localhost:5000/api/address/${addressForm.id}`
+      : 'http://localhost:5000/api/address';
+    const method = addressForm.id ? 'PUT' : 'POST';
+
+    try {
+      const res = await fetch(url, {
+        method,
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          acId: user.AC_ID,
+          addressLine: addressForm.addressLine,
+          subDistrict: addressForm.subDistrict,
+          district: addressForm.district,
+          province: addressForm.province,
+          zipCode: addressForm.zipCode,
+          isDefault: addressForm.isDefault,
+          addressType: "HOME"
+        }),
+      });
+      if (res.ok) {
+        alert("บันทึกที่อยู่เรียบร้อย");
+        setIsAddressModalOpen(false);
+        fetchAddresses(user.AC_ID);
+      } else {
+        const data = await res.json();
+        alert(data.error || "เกิดข้อผิดพลาดในการบันทึกที่อยู่");
       }
     } catch (err) {
       alert("เชื่อมต่อเซิร์ฟเวอร์ไม่ได้");
@@ -424,7 +508,7 @@ function Profile() {
           </div>
           <div>
             <span style={{ color: "#64748b", display: "block", fontSize: "0.85rem" }}>📅 วันที่ลงทะเบียน (REGISTED_DATE)</span>
-            <strong>{user.REGISTED_DATE || "-"}</strong>
+            <strong>{user.REGISTED_DATE || user.REGISTERED_DATE || "-"}</strong>
           </div>
           <div>
             <span style={{ color: "#64748b", display: "block", fontSize: "0.85rem" }}>🏪 ร้านค้าในครอบครอง</span>
@@ -640,6 +724,94 @@ function Profile() {
       )}
 
       {/* ==================================================== */}
+      {/* 3.5 พื้นที่จัดการที่อยู่ (Address) */}
+      {/* ==================================================== */}
+      <section style={{
+        backgroundColor: "#ffffff",
+        borderRadius: "16px",
+        border: "1px solid #e2e8f0",
+        padding: "2rem",
+        marginBottom: "2rem",
+        boxShadow: "0 4px 6px -1px rgba(0, 0, 0, 0.05)"
+      }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "1rem" }}>
+          <div>
+            <h2 style={{ margin: 0, fontSize: "1.35rem", color: "#334155" }}>📍 ที่อยู่ของคุณ (My Addresses)</h2>
+            <p style={{ color: "#64748b", fontSize: "0.85rem", margin: "0.25rem 0 0 0" }}>
+              จัดการที่อยู่สำหรับการจัดส่ง และที่ตั้งสำหรับร้านค้าของคุณ
+            </p>
+          </div>
+          <button onClick={() => handleOpenAddressModal()} style={{ padding: "0.5rem 1rem", backgroundColor: "#3b82f6", color: "white", borderRadius: "8px", border: "none", cursor: "pointer", fontWeight: "bold" }}>
+            ➕ เพิ่มที่อยู่ใหม่
+          </button>
+        </div>
+
+        {addresses.length === 0 ? (
+          <div style={{ padding: "1.5rem", textAlign: "center", backgroundColor: "#f8fafc", borderRadius: "8px", color: "#94a3b8" }}>
+            คุณยังไม่มีที่อยู่บันทึกไว้ในระบบ กดปุ่ม "+ เพิ่มที่อยู่ใหม่" เพื่อเพิ่มที่อยู่
+          </div>
+        ) : (
+          <div style={{ display: "grid", gap: "1rem", gridTemplateColumns: "repeat(auto-fill, minmax(280px, 1fr))" }}>
+            {addresses.map(addr => (
+              <div key={addr.ADDRESS_ID} style={{ border: "1px solid #cbd5e1", borderRadius: "8px", padding: "1rem", position: "relative", backgroundColor: "#f8fafc" }}>
+                {addr.IS_DEFAULT === 'Y' && <span style={{ position: "absolute", top: 10, right: 10, backgroundColor: "#22c55e", color: "white", fontSize: "0.7rem", padding: "2px 6px", borderRadius: "4px" }}>ค่าเริ่มต้น</span>}
+                <p style={{ margin: "0 0 0.5rem 0", fontWeight: "bold", fontSize: "0.95rem" }}>ที่อยู่ #{addr.ADDRESS_ID} {addr.ADDRESS_TYPE ? `(${addr.ADDRESS_TYPE})` : ""}</p>
+                <p style={{ margin: "0", fontSize: "0.9rem", color: "#475569", lineHeight: "1.4" }}>
+                  {addr.ADDRESS_LINE} {addr.SUB_DISTRICT} {addr.DISTRICT} {addr.PROVINCE} {addr.ZIP_CODE}
+                </p>
+                <button onClick={() => handleOpenAddressModal(addr)} style={{ marginTop: "0.75rem", padding: "0.4rem 0.8rem", backgroundColor: "#e2e8f0", border: "none", borderRadius: "6px", cursor: "pointer", fontSize: "0.85rem" }}>
+                  ✏️ แก้ไขที่อยู่
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
+      </section>
+
+      {/* Modal จัดการที่อยู่ */}
+      {isAddressModalOpen && (
+        <div style={{ position: "fixed", top: 0, left: 0, right: 0, bottom: 0, backgroundColor: "rgba(0,0,0,0.5)", display: "flex", justifyContent: "center", alignItems: "center", zIndex: 1000, padding: "1rem" }}>
+          <div style={{ backgroundColor: "#ffffff", padding: "2rem", borderRadius: "16px", width: "100%", maxWidth: "500px", boxShadow: "0 20px 25px -5px rgba(0, 0, 0, 0.2)" }}>
+            <h3 style={{ marginTop: 0, marginBottom: "1rem" }}>{addressForm.id ? "✏️ แก้ไขที่อยู่" : "➕ เพิ่มที่อยู่ใหม่"}</h3>
+            <form onSubmit={handleSaveAddress} style={{ display: "flex", flexDirection: "column", gap: "0.85rem" }}>
+              <div>
+                <label style={{ fontSize: "0.8rem", fontWeight: "bold", color: "#334155" }}>บ้านเลขที่, ถนน, ซอย:</label>
+                <input required placeholder="เช่น 123/45 ถ.สุขุมวิท" value={addressForm.addressLine} onChange={e => setAddressForm({ ...addressForm, addressLine: e.target.value })} style={{ width: "100%", padding: "0.6rem", borderRadius: "6px", border: "1px solid #cbd5e1", boxSizing: "border-box", marginTop: "0.2rem" }} />
+              </div>
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0.5rem" }}>
+                <div>
+                  <label style={{ fontSize: "0.8rem", fontWeight: "bold", color: "#334155" }}>ตำบล / แขวง:</label>
+                  <input required placeholder="ตำบล / แขวง" value={addressForm.subDistrict} onChange={e => setAddressForm({ ...addressForm, subDistrict: e.target.value })} style={{ width: "100%", padding: "0.6rem", borderRadius: "6px", border: "1px solid #cbd5e1", boxSizing: "border-box", marginTop: "0.2rem" }} />
+                </div>
+                <div>
+                  <label style={{ fontSize: "0.8rem", fontWeight: "bold", color: "#334155" }}>อำเภอ / เขต:</label>
+                  <input required placeholder="อำเภอ / เขต" value={addressForm.district} onChange={e => setAddressForm({ ...addressForm, district: e.target.value })} style={{ width: "100%", padding: "0.6rem", borderRadius: "6px", border: "1px solid #cbd5e1", boxSizing: "border-box", marginTop: "0.2rem" }} />
+                </div>
+              </div>
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0.5rem" }}>
+                <div>
+                  <label style={{ fontSize: "0.8rem", fontWeight: "bold", color: "#334155" }}>จังหวัด:</label>
+                  <input required placeholder="จังหวัด" value={addressForm.province} onChange={e => setAddressForm({ ...addressForm, province: e.target.value })} style={{ width: "100%", padding: "0.6rem", borderRadius: "6px", border: "1px solid #cbd5e1", boxSizing: "border-box", marginTop: "0.2rem" }} />
+                </div>
+                <div>
+                  <label style={{ fontSize: "0.8rem", fontWeight: "bold", color: "#334155" }}>รหัสไปรษณีย์:</label>
+                  <input required placeholder="รหัสไปรษณีย์" value={addressForm.zipCode} onChange={e => setAddressForm({ ...addressForm, zipCode: e.target.value })} style={{ width: "100%", padding: "0.6rem", borderRadius: "6px", border: "1px solid #cbd5e1", boxSizing: "border-box", marginTop: "0.2rem" }} />
+                </div>
+              </div>
+              <label style={{ display: "flex", alignItems: "center", gap: "0.5rem", fontSize: "0.85rem", cursor: "pointer", marginTop: "0.25rem" }}>
+                <input type="checkbox" checked={addressForm.isDefault === 'Y'} onChange={e => setAddressForm({ ...addressForm, isDefault: e.target.checked ? 'Y' : 'N' })} />
+                ตั้งเป็นที่อยู่เริ่มต้น
+              </label>
+              <div style={{ display: "flex", justifyContent: "flex-end", gap: "0.5rem", marginTop: "0.5rem" }}>
+                <button type="button" onClick={() => setIsAddressModalOpen(false)} style={{ padding: "0.6rem 1rem", backgroundColor: "#e2e8f0", border: "none", borderRadius: "6px", cursor: "pointer" }}>ยกเลิก</button>
+                <button type="submit" style={{ padding: "0.6rem 1.4rem", backgroundColor: "#3b82f6", color: "white", border: "none", borderRadius: "6px", cursor: "pointer", fontWeight: "bold" }}>บันทึก</button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* ==================================================== */}
       {/* 4. พื้นที่จัดการร้านค้า (เงื่อนไขสิทธิ์ตาม Role) */}
       {/* ==================================================== */}
       {(user.TYPE === "Seller" || isAdminOrEmployee || (user.TYPE === "Customer" && myStores.length > 0)) && (
@@ -708,15 +880,29 @@ function Profile() {
                   />
                 </div>
                 <div>
-                  <label style={{ fontSize: "0.85rem", fontWeight: "bold", color: "#166534" }}>สถานที่ตั้ง (LOCATION):</label>
-                  <input
-                    type="text"
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                    <label style={{ fontSize: "0.85rem", fontWeight: "bold", color: "#166534" }}>สถานที่ตั้ง (เลือกที่อยู่):</label>
+                    <button
+                      type="button"
+                      onClick={() => handleOpenAddressModal()}
+                      style={{ fontSize: "0.75rem", color: "#2563eb", background: "none", border: "none", cursor: "pointer", textDecoration: "underline", padding: 0 }}
+                    >
+                      ➕ เพิ่มที่อยู่ใหม่
+                    </button>
+                  </div>
+                  <select
                     required
-                    placeholder="เช่น อาคาร A ชั้น 1 ถ.สุขุมวิท"
-                    value={storeForm.location}
-                    onChange={(e) => setStoreForm({ ...storeForm, location: e.target.value })}
+                    value={storeForm.addressId}
+                    onChange={(e) => setStoreForm({ ...storeForm, addressId: e.target.value })}
                     style={{ width: "100%", padding: "0.6rem", marginTop: "0.25rem", borderRadius: "6px", border: "1px solid #86efac", boxSizing: "border-box" }}
-                  />
+                  >
+                    <option value="" disabled>-- กรุณาเลือกที่อยู่ร้านค้า --</option>
+                    {addresses.map(a => (
+                      <option key={a.ADDRESS_ID} value={a.ADDRESS_ID}>
+                        {a.ADDRESS_LINE} {a.SUB_DISTRICT || ""} {a.DISTRICT || ""} {a.PROVINCE} {a.ZIP_CODE || ""}
+                      </option>
+                    ))}
+                  </select>
                 </div>
                 <button
                   type="submit"
@@ -802,7 +988,7 @@ function Profile() {
                           {s.ST_NAME} <span style={{ fontSize: "0.8rem", color: "#64748b" }}>#{s.ST_ID}</span>
                         </h4>
                         <p style={{ margin: "0 0 0.75rem 0", color: "#64748b", fontSize: "0.85rem" }}>
-                          📍 {s.LOCATION}
+                          📍 {s.ADDRESS_LINE ? `${s.ADDRESS_LINE} ${s.SUB_DISTRICT || ""} ${s.DISTRICT || ""} ${s.PROVINCE || ""} ${s.ZIP_CODE || ""}`.trim() : (s.LOCATION || "ไม่ระบุที่อยู่")}
                         </p>
                       </div>
 
@@ -961,16 +1147,31 @@ function Profile() {
               </div>
 
               <div>
-                <label style={{ display: "block", fontSize: "0.85rem", fontWeight: "bold", color: "#334155" }}>
-                  สถานที่ตั้ง (LOCATION):
-                </label>
-                <input
-                  type="text"
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                  <label style={{ display: "block", fontSize: "0.85rem", fontWeight: "bold", color: "#334155" }}>
+                    สถานที่ตั้ง (เลือกที่อยู่):
+                  </label>
+                  <button
+                    type="button"
+                    onClick={() => { setEditStoreModalOpen(false); handleOpenAddressModal(); }}
+                    style={{ fontSize: "0.75rem", color: "#2563eb", background: "none", border: "none", cursor: "pointer", textDecoration: "underline", padding: 0 }}
+                  >
+                    ➕ เพิ่มที่อยู่ใหม่
+                  </button>
+                </div>
+                <select
                   required
-                  value={storeEditForm.location}
-                  onChange={(e) => setStoreEditForm({ ...storeEditForm, location: e.target.value })}
+                  value={storeEditForm.addressId}
+                  onChange={(e) => setStoreEditForm({ ...storeEditForm, addressId: e.target.value })}
                   style={{ width: "100%", padding: "0.6rem", marginTop: "0.3rem", borderRadius: "6px", border: "1px solid #cbd5e1", boxSizing: "border-box" }}
-                />
+                >
+                  <option value="" disabled>-- กรุณาเลือกที่อยู่ร้านค้า --</option>
+                  {addresses.map(a => (
+                    <option key={a.ADDRESS_ID} value={a.ADDRESS_ID}>
+                      {a.ADDRESS_LINE} {a.SUB_DISTRICT || ""} {a.DISTRICT || ""} {a.PROVINCE} {a.ZIP_CODE || ""}
+                    </option>
+                  ))}
+                </select>
               </div>
 
               <div style={{ display: "flex", justifyContent: "flex-end", gap: "0.5rem", marginTop: "1rem" }}>
