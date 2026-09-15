@@ -9,6 +9,10 @@ function Home() {
   const [searchParams, setSearchParams] = useSearchParams();
   const searchQuery = searchParams.get("q") || "";
 
+  // สถานะสำหรับการแบ่งหน้า (Pagination)
+  const [currentPage, setCurrentPage] = useState(1);
+  const [itemsPerPage, setItemsPerPage] = useState(20);
+
   // โหลดข้อมูล User จาก localStorage
   useEffect(() => {
     try {
@@ -58,15 +62,10 @@ function Home() {
     fetchProducts("personalized");
   }, [fetchProducts]);
 
-  // เมื่อโหลดข้อมูลสินค้าเสร็จ ส่ง Event เพื่อให้ Liquid Glass Navbar แคปเจอร์ภาพใหม่อีกครั้ง
+  // รีเซ็ตหน้ากลับเป็นหน้า 1 เมื่อมีการค้นหา, เปลี่ยนวิธีเรียง, หรือเปลี่ยนจำนวนรายการต่อหน้า
   useEffect(() => {
-    if (!loading && products.length > 0) {
-      const timer = setTimeout(() => {
-        window.dispatchEvent(new CustomEvent("update-glass"));
-      }, 100);
-      return () => clearTimeout(timer);
-    }
-  }, [loading, products.length]);
+    setCurrentPage(1);
+  }, [searchQuery, sortBy, itemsPerPage]);
 
   // จัดการการเปลี่ยนวิธีจัดเรียง
   const handleSortChange = (newSort) => {
@@ -107,6 +106,32 @@ function Home() {
     return 0;
   });
 
+  // การคำนวณ Pagination สำหรับหน้าปัจจุบัน
+  const totalItems = displayedProducts.length;
+  const totalPages = Math.max(1, Math.ceil(totalItems / itemsPerPage));
+  const safeCurrentPage = Math.min(Math.max(1, currentPage), totalPages);
+
+  const startIndex = (safeCurrentPage - 1) * itemsPerPage;
+  const endIndex = Math.min(startIndex + itemsPerPage, totalItems);
+  const paginatedProducts = displayedProducts.slice(startIndex, endIndex);
+
+  // ฟังก์ชันเปลี่ยนหน้า พร้อมเลื่อนจอกลับขึ้นด้านบน
+  const handlePageChange = (newPage) => {
+    if (newPage < 1 || newPage > totalPages || newPage === safeCurrentPage) return;
+    setCurrentPage(newPage);
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  };
+
+  // เมื่อโหลดข้อมูลเสร็จ หรือเปลี่ยนหน้า/เปลี่ยนขนาด ส่ง Event ให้ Liquid Glass Navbar แคปเจอร์ภาพใหม่อีกครั้ง
+  useEffect(() => {
+    if (!loading && paginatedProducts.length > 0) {
+      const timer = setTimeout(() => {
+        window.dispatchEvent(new CustomEvent("update-glass"));
+      }, 100);
+      return () => clearTimeout(timer);
+    }
+  }, [loading, paginatedProducts.length, safeCurrentPage, itemsPerPage]);
+
   if (loading && products.length === 0) {
     return (
       <div style={{ padding: "3rem 1rem", textAlign: "center", color: "#64748b" }}>
@@ -146,7 +171,7 @@ function Home() {
                 marginLeft: "0.6rem",
               }}
             >
-              (พบ {displayedProducts.length} รายการ จากทั้งหมด {products.length} ชิ้น)
+              (พบ {displayedProducts.length} รายการ จากทั้งหมด {products.length} ชิ้น • หน้า {safeCurrentPage}/{totalPages})
             </span>
           </div>
           <button
@@ -334,171 +359,335 @@ function Home() {
           </button>
         </div>
       ) : (
-        <div
-          style={{
-            display: "grid",
-            gridTemplateColumns: "repeat(auto-fill, minmax(240px, 1fr))",
-            gap: "1.5rem",
-          }}
-        >
-          {displayedProducts.map((item) => {
-            const isClosed = item.IS_OPEN === "N";
-            return (
-              <div
-                key={item.PRODUCT_ID}
-                style={{
-                  border: isClosed ? "2px solid #ef4444" : "1px solid #e2e8f0",
-                  borderRadius: "12px",
-                  overflow: "hidden",
-                  backgroundColor: isClosed ? "#fef2f2" : "#fff",
-                  position: "relative",
-                  transition: "all 0.2s ease",
-                  display: "flex",
-                  flexDirection: "column",
-                  justifyContent: "space-between",
-                  boxShadow: "0 2px 4px rgba(0,0,0,0.03)",
-                }}
-              >
-                <div>
-                  {/* ป้ายเตือนร้านปิด (สีแดงเด่นชัด) */}
-                  {isClosed && (
-                    <div
-                      style={{
-                        position: "absolute",
-                        top: 10,
-                        left: 10,
-                        background: "#dc2626",
-                        color: "white",
-                        padding: "0.25rem 0.6rem",
-                        borderRadius: "6px",
-                        fontSize: "0.75rem",
-                        fontWeight: "bold",
-                        zIndex: 2,
-                        boxShadow: "0 2px 4px rgba(0, 0, 0, 0.2)",
-                      }}
-                    >
-                      ⛔ ร้านปิดให้บริการ
-                    </div>
-                  )}
-
-                  {/* โชว์รูปจริงจาก DB ถ้าไม่มีให้ใช้รูปจำลอง */}
-                  <img
-                    src={
-                      item.IMAGE_URL ||
-                      `https://placehold.co/300x200?text=${encodeURIComponent(
-                        item.PRODUCT_NAME
-                      )}`
-                    }
-                    alt={item.PRODUCT_NAME}
-                    style={{
-                      width: "100%",
-                      height: "160px",
-                      objectFit: "cover",
-                      filter: isClosed ? "grayscale(40%)" : "none",
-                    }}
-                  />
-
-                  {/* ป้ายเตือนสินค้าหมด */}
-                  {item.STOCK <= 0 && (
-                    <div
-                      style={{
-                        position: "absolute",
-                        top: 10,
-                        right: 10,
-                        background: "#ef4444",
-                        color: "white",
-                        padding: "0.2rem 0.6rem",
-                        borderRadius: "4px",
-                        fontSize: "0.8rem",
-                        fontWeight: "bold",
-                        zIndex: 2,
-                      }}
-                    >
-                      สินค้าหมด
-                    </div>
-                  )}
-
-                  <div
-                    style={{
-                      padding: "1rem",
-                      display: "flex",
-                      flexDirection: "column",
-                    }}
-                  >
-                    <div
-                      style={{
-                        display: "flex",
-                        justifyContent: "space-between",
-                        fontSize: "0.75rem",
-                        color: "#64748b",
-                      }}
-                    >
-                      <span>
-                        {item.TYPE} • เหลือ {item.STOCK} ชิ้น
-                      </span>
-                      <span
+        <>
+          <div
+            style={{
+              display: "grid",
+              gridTemplateColumns: "repeat(auto-fill, minmax(240px, 1fr))",
+              gap: "1.5rem",
+            }}
+          >
+            {paginatedProducts.map((item) => {
+              const isClosed = item.IS_OPEN === "N";
+              const isOutOfStock = (item.STOCK ?? 0) <= 0;
+              return (
+                <div
+                  key={item.PRODUCT_ID}
+                  style={{
+                    border: isClosed
+                      ? "2px solid #ef4444"
+                      : isOutOfStock
+                        ? "1.5px solid #fca5a5"
+                        : "1px solid #e2e8f0",
+                    borderRadius: "12px",
+                    overflow: "hidden",
+                    backgroundColor: isClosed
+                      ? "#fef2f2"
+                      : isOutOfStock
+                        ? "#fffdfd"
+                        : "#fff",
+                    position: "relative",
+                    transition: "all 0.2s ease",
+                    display: "flex",
+                    flexDirection: "column",
+                    justifyContent: "space-between",
+                    boxShadow: "0 2px 4px rgba(0,0,0,0.03)",
+                  }}
+                >
+                  <div>
+                    {/* ป้ายเตือนร้านปิด (สีแดงเด่นชัด) */}
+                    {isClosed && (
+                      <div
                         style={{
-                          color: isClosed ? "#dc2626" : "#059669",
+                          position: "absolute",
+                          top: 10,
+                          left: 10,
+                          background: "#dc2626",
+                          color: "white",
+                          padding: "0.25rem 0.6rem",
+                          borderRadius: "6px",
+                          fontSize: "0.75rem",
                           fontWeight: "bold",
+                          zIndex: 2,
+                          boxShadow: "0 2px 4px rgba(0, 0, 0, 0.2)",
                         }}
                       >
-                        🏪 {item.ST_NAME}
-                      </span>
-                    </div>
+                        ⛔ ร้านปิดให้บริการ
+                      </div>
+                    )}
 
-                    <h3 style={{ fontSize: "1rem", margin: "0.5rem 0 0.25rem 0", color: "#0f172a" }}>
-                      {item.PRODUCT_NAME}
-                    </h3>
+                    {/* ป้ายเตือนสินค้าหมด */}
+                    {isOutOfStock && (
+                      <div
+                        style={{
+                          position: "absolute",
+                          top: 10,
+                          right: 10,
+                          background: "#dc2626",
+                          color: "white",
+                          padding: "0.25rem 0.6rem",
+                          borderRadius: "6px",
+                          fontSize: "0.75rem",
+                          fontWeight: "bold",
+                          zIndex: 2,
+                          boxShadow: "0 2px 4px rgba(0, 0, 0, 0.2)",
+                        }}
+                      >
+                        🚫 สินค้าหมด
+                      </div>
+                    )}
+
+                    {/* โชว์รูปจริงจาก DB ถ้าไม่มีให้ใช้รูปจำลอง */}
+                    <img
+                      src={
+                        item.IMAGE_URL ||
+                        `https://placehold.co/300x200?text=${encodeURIComponent(
+                          item.PRODUCT_NAME
+                        )}`
+                      }
+                      alt={item.PRODUCT_NAME}
+                      style={{
+                        width: "100%",
+                        height: "160px",
+                        objectFit: "cover",
+                        filter: isClosed || isOutOfStock ? "grayscale(70%)" : "none",
+                        opacity: isOutOfStock ? 0.8 : 1,
+                      }}
+                    />
 
                     <div
                       style={{
+                        padding: "1rem",
                         display: "flex",
-                        justifyContent: "space-between",
-                        alignItems: "center",
-                        marginTop: "0.5rem",
+                        flexDirection: "column",
                       }}
                     >
-                      <span
+                      <div
                         style={{
-                          fontSize: "1.15rem",
-                          fontWeight: "bold",
-                          color: isClosed ? "#991b1b" : "#059669",
+                          display: "flex",
+                          justifyContent: "space-between",
+                          fontSize: "0.75rem",
+                          color: "#64748b",
                         }}
                       >
-                        ฿
-                        {item.PRODUCT_PRICE
-                          ? item.PRODUCT_PRICE.toLocaleString()
-                          : 0}
-                      </span>
-                      <span style={{ fontSize: "0.75rem", color: "#f59e0b", fontWeight: "bold" }}>
-                        ⭐ {item.RATING_POINT ?? 0}
-                      </span>
+                        <span>
+                          {item.TYPE} •{" "}
+                          {isOutOfStock ? (
+                            <strong style={{ color: "#dc2626" }}>สินค้าหมด (0 ชิ้น)</strong>
+                          ) : (
+                            `เหลือ ${item.STOCK} ชิ้น`
+                          )}
+                        </span>
+                        <Link
+                          to={`/store/${item.ST_ID}`}
+                          style={{
+                            color: isClosed ? "#dc2626" : "#059669",
+                            fontWeight: "bold",
+                            textDecoration: "none",
+                            cursor: "pointer",
+                          }}
+                          onMouseEnter={(e) => (e.currentTarget.style.textDecoration = "underline")}
+                          onMouseLeave={(e) => (e.currentTarget.style.textDecoration = "none")}
+                          title={`ไปที่หน้าร้าน ${item.ST_NAME}`}
+                        >
+                          🏪 {item.ST_NAME}
+                        </Link>
+                      </div>
+
+                      <h3 style={{ fontSize: "1rem", margin: "0.5rem 0 0.25rem 0", color: "#0f172a" }}>
+                        {item.PRODUCT_NAME}
+                      </h3>
+
+                      <div
+                        style={{
+                          display: "flex",
+                          justifyContent: "space-between",
+                          alignItems: "center",
+                          marginTop: "0.5rem",
+                        }}
+                      >
+                        <span
+                          style={{
+                            fontSize: "1.15rem",
+                            fontWeight: "bold",
+                            color: isClosed ? "#991b1b" : isOutOfStock ? "#64748b" : "#059669",
+                          }}
+                        >
+                          ฿
+                          {item.PRODUCT_PRICE
+                            ? item.PRODUCT_PRICE.toLocaleString()
+                            : 0}
+                        </span>
+                        <span style={{ fontSize: "0.75rem", color: "#f59e0b", fontWeight: "bold" }}>
+                          ⭐ {item.RATING ?? item.RATING_POINT ?? 0}
+                        </span>
+                      </div>
                     </div>
                   </div>
-                </div>
 
-                <div style={{ padding: "0 1rem 1rem 1rem" }}>
-                  <Link
-                    to={`/product/${item.PRODUCT_ID}`}
-                    style={{
-                      display: "block",
-                      textAlign: "center",
-                      padding: "0.5rem",
-                      backgroundColor: isClosed ? "#dc2626" : "#2563eb",
-                      color: "white",
-                      borderRadius: "6px",
-                      textDecoration: "none",
-                      fontWeight: "bold",
-                      fontSize: "0.9rem",
-                    }}
-                  >
-                    {isClosed ? "ดูรายละเอียด (ร้านปิด)" : "ดูรายละเอียด"}
-                  </Link>
+                  <div style={{ padding: "0 1rem 1rem 1rem" }}>
+                    <Link
+                      to={`/product/${item.PRODUCT_ID}`}
+                      style={{
+                        display: "block",
+                        textAlign: "center",
+                        padding: "0.5rem",
+                        backgroundColor: isClosed
+                          ? "#dc2626"
+                          : isOutOfStock
+                            ? "#64748b"
+                            : "#2563eb",
+                        color: "white",
+                        borderRadius: "6px",
+                        textDecoration: "none",
+                        fontWeight: "bold",
+                        fontSize: "0.9rem",
+                      }}
+                    >
+                      {isClosed
+                        ? "ดูรายละเอียด (ร้านปิด)"
+                        : isOutOfStock
+                          ? "ดูรายละเอียด (สินค้าหมด)"
+                          : "ดูรายละเอียด"}
+                    </Link>
+                  </div>
                 </div>
+              );
+            })}
+          </div>
+
+          {/* ส่วนควบคุมการแบ่งหน้า (Pagination Controls) */}
+          {totalItems > 0 && (
+            <div
+              style={{
+                marginTop: "2.5rem",
+                padding: "1rem 1.5rem",
+                backgroundColor: "#ffffff",
+                borderRadius: "14px",
+                border: "1px solid #e2e8f0",
+                boxShadow: "0 2px 6px rgba(0,0,0,0.03)",
+                display: "flex",
+                justifyContent: "space-between",
+                alignItems: "center",
+                flexWrap: "wrap",
+                gap: "1rem",
+              }}
+            >
+              {/* ข้อมูลสรุปจำนวนสินค้าที่แสดง */}
+              <div style={{ color: "#64748b", fontSize: "0.9rem" }}>
+                กำลังแสดงรายการที่{" "}
+                <strong style={{ color: "#0f172a" }}>
+                  {totalItems > 0 ? startIndex + 1 : 0} - {endIndex}
+                </strong>{" "}
+                จากทั้งหมด <strong style={{ color: "#0f172a" }}>{totalItems}</strong> รายการ
+                <span style={{ marginLeft: "0.5rem", color: "#94a3b8" }}>
+                  (หน้า {safeCurrentPage} จาก {totalPages})
+                </span>
               </div>
-            );
-          })}
-        </div>
+
+              {/* ปุ่มกดเลือกหน้า */}
+              <div
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "0.35rem",
+                  flexWrap: "wrap",
+                }}
+              >
+                <button
+                  onClick={() => handlePageChange(safeCurrentPage - 1)}
+                  disabled={safeCurrentPage <= 1}
+                  style={{
+                    padding: "0.45rem 0.85rem",
+                    borderRadius: "8px",
+                    border: "1px solid #e2e8f0",
+                    backgroundColor: safeCurrentPage <= 1 ? "#f8fafc" : "#ffffff",
+                    color: safeCurrentPage <= 1 ? "#cbd5e1" : "#475569",
+                    cursor: safeCurrentPage <= 1 ? "not-allowed" : "pointer",
+                    fontWeight: "600",
+                    fontSize: "0.85rem",
+                    display: "flex",
+                    alignItems: "center",
+                    gap: "0.25rem",
+                    transition: "all 0.15s ease",
+                  }}
+                >
+                  ‹ ย้อนกลับ
+                </button>
+
+                {Array.from({ length: totalPages }, (_, idx) => idx + 1).map((pageNum) => {
+                  const isActive = pageNum === safeCurrentPage;
+                  return (
+                    <button
+                      key={pageNum}
+                      onClick={() => handlePageChange(pageNum)}
+                      style={{
+                        minWidth: "36px",
+                        height: "36px",
+                        padding: "0 0.5rem",
+                        borderRadius: "8px",
+                        border: isActive ? "1.5px solid #2563eb" : "1px solid #e2e8f0",
+                        backgroundColor: isActive ? "#2563eb" : "#ffffff",
+                        color: isActive ? "#ffffff" : "#334155",
+                        fontWeight: isActive ? "bold" : "500",
+                        fontSize: "0.875rem",
+                        cursor: "pointer",
+                        boxShadow: isActive ? "0 2px 4px rgba(37,99,235,0.25)" : "none",
+                        transition: "all 0.15s ease",
+                      }}
+                    >
+                      {pageNum}
+                    </button>
+                  );
+                })}
+
+                <button
+                  onClick={() => handlePageChange(safeCurrentPage + 1)}
+                  disabled={safeCurrentPage >= totalPages}
+                  style={{
+                    padding: "0.45rem 0.85rem",
+                    borderRadius: "8px",
+                    border: "1px solid #e2e8f0",
+                    backgroundColor: safeCurrentPage >= totalPages ? "#f8fafc" : "#ffffff",
+                    color: safeCurrentPage >= totalPages ? "#cbd5e1" : "#475569",
+                    cursor: safeCurrentPage >= totalPages ? "not-allowed" : "pointer",
+                    fontWeight: "600",
+                    fontSize: "0.85rem",
+                    display: "flex",
+                    alignItems: "center",
+                    gap: "0.25rem",
+                    transition: "all 0.15s ease",
+                  }}
+                >
+                  ถัดไป ›
+                </button>
+              </div>
+
+              {/* ตัวเลือกจำนวนรายการต่อหน้า */}
+              <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
+                <span style={{ color: "#64748b", fontSize: "0.85rem" }}>แสดงต่อหน้า:</span>
+                <select
+                  value={itemsPerPage}
+                  onChange={(e) => setItemsPerPage(Number(e.target.value))}
+                  style={{
+                    padding: "0.4rem 0.65rem",
+                    borderRadius: "8px",
+                    border: "1px solid #cbd5e1",
+                    backgroundColor: "#ffffff",
+                    color: "#334155",
+                    fontSize: "0.85rem",
+                    cursor: "pointer",
+                    outline: "none",
+                  }}
+                >
+                  <option value={10}>10 ชิ้น</option>
+                  <option value={20}>20 ชิ้น</option>
+                  <option value={40}>40 ชิ้น</option>
+                </select>
+              </div>
+            </div>
+          )}
+        </>
       )}
     </div>
   );

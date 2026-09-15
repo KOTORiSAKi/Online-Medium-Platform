@@ -94,12 +94,81 @@ function Product() {
           <h1 style={{ fontSize: "1.5rem", margin: "0.5rem 0" }}>
             {product.PRODUCT_NAME}
           </h1>
-          <span style={{ fontSize: "0.85rem", color: "#64748b" }}>
-            หมวดหมู่: {product.TYPE} • เหลือ: {product.STOCK} ชิ้น
-          </span>
-          <span style={{ fontSize: "0.9rem", color: product.IS_OPEN === "N" ? "#dc2626" : "#059669", fontWeight: "bold", marginTop: "0.25rem" }}>
-            🏪 ร้านค้า: {product.ST_NAME} {product.IS_OPEN === "N" ? "🔴 (ปิดให้บริการชั่วคราว)" : "🟢 (เปิดให้บริการ)"}
-          </span>
+          <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", flexWrap: "wrap", marginTop: "0.2rem" }}>
+            <span style={{ fontSize: "0.85rem", color: "#64748b" }}>
+              หมวดหมู่: {product.TYPE}
+            </span>
+            <span style={{ color: "#cbd5e1" }}>•</span>
+            {product.STOCK <= 0 ? (
+              <span
+                style={{
+                  fontSize: "0.82rem",
+                  color: "#dc2626",
+                  fontWeight: "bold",
+                  backgroundColor: "#fee2e2",
+                  padding: "0.15rem 0.5rem",
+                  borderRadius: "4px",
+                  border: "1px solid #fca5a5",
+                }}
+              >
+                🔴 สินค้าหมดชั่วคราว (Out of Stock)
+              </span>
+            ) : (
+              <span
+                style={{
+                  fontSize: "0.82rem",
+                  color: "#059669",
+                  fontWeight: "bold",
+                  backgroundColor: "#dcfce7",
+                  padding: "0.15rem 0.5rem",
+                  borderRadius: "4px",
+                  border: "1px solid #86efac",
+                }}
+              >
+                🟢 มีสินค้าพร้อมส่ง (คงเหลือ {product.STOCK} ชิ้น)
+              </span>
+            )}
+          </div>
+          <div style={{ display: "flex", alignItems: "center", gap: "0.75rem", marginTop: "0.35rem", flexWrap: "wrap" }}>
+            <span style={{ fontSize: "0.95rem", color: "#d97706", fontWeight: "bold" }}>
+              ⭐ {product.RATING ? Number(product.RATING).toFixed(1) : "0.0"} / 5.0
+            </span>
+            <span style={{ fontSize: "0.85rem", color: "#64748b" }}>
+              (คะแนนเฉลี่ยร้านค้า: ⭐ {product.RATING_POINT ? Number(product.RATING_POINT).toFixed(1) : "0.0"})
+            </span>
+          </div>
+
+          <div style={{ display: "flex", alignItems: "center", gap: "0.6rem", marginTop: "0.4rem", flexWrap: "wrap" }}>
+            <span style={{ fontSize: "0.9rem", color: product.IS_OPEN === "N" ? "#dc2626" : "#059669", fontWeight: "bold" }}>
+              🏪 ร้านค้า:{" "}
+              <Link
+                to={`/store/${product.ST_ID}`}
+                style={{
+                  color: "#2563eb",
+                  textDecoration: "underline",
+                  fontWeight: "bold",
+                }}
+              >
+                {product.ST_NAME}
+              </Link>{" "}
+              {product.IS_OPEN === "N" ? "🔴 (ปิดให้บริการชั่วคราว)" : "🟢 (เปิดให้บริการ)"}
+            </span>
+            <Link
+              to={`/store/${product.ST_ID}`}
+              style={{
+                fontSize: "0.8rem",
+                padding: "0.2rem 0.6rem",
+                backgroundColor: "#eff6ff",
+                color: "#1d4ed8",
+                borderRadius: "6px",
+                border: "1px solid #bfdbfe",
+                textDecoration: "none",
+                fontWeight: "bold",
+              }}
+            >
+              เยี่ยมชมร้านค้า →
+            </Link>
+          </div>
 
           {/* 💡 แจ้งเตือนถ้าร้านปิด */}
           {product.IS_OPEN === "N" && (
@@ -118,6 +187,23 @@ function Product() {
               <span style={{ fontSize: "0.8rem", color: "#b91c1c" }}>
                 * คุณยังสามารถกดเพิ่มสินค้าลงตะกร้าได้ แต่จะไม่สามารถกดยืนยันสั่งซื้อจนกว่าทางร้านจะเปิดให้บริการ
               </span>
+            </div>
+          )}
+
+          {/* 💡 แจ้งเตือนถ้าสินค้าหมดสต็อก */}
+          {product.STOCK <= 0 && (
+            <div
+              style={{
+                backgroundColor: "#fef2f2",
+                border: "1px solid #f87171",
+                borderRadius: "8px",
+                padding: "0.75rem 1rem",
+                marginTop: "0.75rem",
+                color: "#991b1b",
+                fontSize: "0.9rem",
+              }}
+            >
+              <strong>⚠️ สินค้าหมดสต็อก:</strong> ขออภัย สินค้านี้หมดแล้วในขณะนี้ ทางร้านกำลังจัดเตรียมสินค้าเพิ่มเติม
             </div>
           )}
 
@@ -165,16 +251,18 @@ function Product() {
               disabled={product.STOCK <= 0}
               style={{
                 flex: 1,
-                padding: "0.75rem",
-                backgroundColor: product.STOCK <= 0 ? "#cbd5e0" : "#2563eb",
+                padding: "0.85rem",
+                backgroundColor: product.STOCK <= 0 ? "#94a3b8" : "#2563eb",
                 color: "white",
                 border: "none",
                 borderRadius: "8px",
                 cursor: product.STOCK <= 0 ? "not-allowed" : "pointer",
                 fontWeight: "bold",
+                fontSize: "1rem",
+                boxShadow: product.STOCK <= 0 ? "none" : "0 2px 6px rgba(37, 99, 235, 0.3)",
               }}
             >
-              {product.STOCK <= 0 ? "สินค้าหมด" : "🛒 เพิ่มลงตะกร้า"}
+              {product.STOCK <= 0 ? "🚫 สินค้าหมดสต็อก (Out of Stock)" : "🛒 เพิ่มลงตะกร้า"}
             </button>
           </div>
         </div>

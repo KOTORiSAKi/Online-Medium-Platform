@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, Link } from "react-router-dom";
 
 function Market() {
   const navigate = useNavigate();
@@ -33,6 +33,7 @@ function Market() {
             if (!acc[item.ORDER_ID]) {
               acc[item.ORDER_ID] = {
                 storeName: item.ST_NAME,
+                stId: item.ST_ID,
                 isOpen: item.IS_OPEN,
                 items: [],
                 total: 0,
@@ -66,14 +67,14 @@ function Market() {
           });
 
           const openItemIds = data
-            .filter((item) => item.IS_OPEN !== "N")
+            .filter((item) => item.IS_OPEN !== "N" && (item.STOCK ?? 1) > 0)
             .map((item) => item.ORDER_DETAIL_ID);
 
           setSelectedDetailIds((prev) => {
             if (!isSelectionInitialized) {
               return openItemIds;
             }
-            // กรองเอาเฉพาะรายการที่เคยเลือกไว้ และยังอยู่ในร้านที่เปิด
+            // กรองเอาเฉพาะรายการที่เคยเลือกไว้ ยังอยู่ในร้านที่เปิด และยังมีสต็อก
             return prev.filter((id) => openItemIds.includes(id));
           });
           setIsSelectionInitialized(true);
@@ -171,10 +172,11 @@ function Market() {
     }
   };
 
-  // ดึงสินค้าทั้งหมดที่มาจากร้านที่เปิดให้บริการ
+  // ดึงสินค้าทั้งหมดที่มาจากร้านที่เปิดให้บริการ และยังมีสต็อก
   const allOpenItems = Object.values(groupedCart)
     .filter((group) => group.isOpen !== "N")
-    .flatMap((group) => group.items);
+    .flatMap((group) => group.items)
+    .filter((item) => (item.STOCK ?? 1) > 0);
 
   const allOpenItemIds = allOpenItems.map((item) => item.ORDER_DETAIL_ID);
 
@@ -191,10 +193,14 @@ function Market() {
     }
   };
 
-  // ฟังก์ชันเลือก / ยกเลิกเลือกทั้งร้าน
+  // ฟังก์ชันเลือก / ยกเลิกเลือกทั้งร้าน (เฉพาะชิ้นที่มีสต็อก)
   const toggleStoreSelection = (group) => {
     if (group.isOpen === "N") return;
-    const storeItemIds = group.items.map((it) => it.ORDER_DETAIL_ID);
+    const storeItemIds = group.items
+      .filter((it) => (it.STOCK ?? 1) > 0)
+      .map((it) => it.ORDER_DETAIL_ID);
+    if (storeItemIds.length === 0) return;
+
     const isStoreAllSelected = storeItemIds.every((id) =>
       selectedDetailIds.includes(id),
     );
@@ -212,8 +218,8 @@ function Market() {
   };
 
   // ฟังก์ชันเลือก / ยกเลิกเลือกแต่ละชิ้น
-  const toggleItemSelection = (orderDetailId, isOpen) => {
-    if (!isOpen) return;
+  const toggleItemSelection = (orderDetailId, isSelectable) => {
+    if (!isSelectable) return;
     setSelectedDetailIds((prev) => {
       if (prev.includes(orderDetailId)) {
         return prev.filter((id) => id !== orderDetailId);
@@ -248,10 +254,6 @@ function Market() {
       alert("กรุณาเลือกที่อยู่จัดส่ง");
       return;
     }
-    if (false) {
-      alert("กรุณาเลือกสินค้าอย่างน้อย 1 ชิ้นที่ต้องการสั่งซื้อ");
-      return;
-    }
 
     // ป้องกันกรณีที่มีสินค้าที่เลือกร้านปิดอยู่
     const hasSelectedClosed = selectedItems.some(
@@ -260,6 +262,18 @@ function Market() {
     if (hasSelectedClosed) {
       alert(
         "⚠️ ไม่สามารถสั่งซื้อได้: มีสินค้าจากร้านค้าที่ปิดให้บริการอยู่ในรายการที่เลือก",
+      );
+      return;
+    }
+
+    // ป้องกันกรณีที่มีสินค้าหมดสต็อกหรือสั่งซื้อเกินจำนวนสต็อก
+    const outOfStockSelected = selectedItems.filter(
+      (item) => (item.STOCK ?? 1) <= 0 || item.QUANTITY > item.STOCK,
+    );
+    if (outOfStockSelected.length > 0) {
+      const names = outOfStockSelected.map((it) => it.PRODUCT_NAME).join(", ");
+      alert(
+        `⚠️ ไม่สามารถสั่งซื้อได้: มีสินค้าหมดสต็อกหรือจำนวนเกินสต็อกในรายการที่เลือก (${names}) กรุณาตรวจสอบและปรับลดจำนวนก่อนสั่งซื้อ`,
       );
       return;
     }
@@ -482,7 +496,22 @@ function Market() {
                           color: isClosed ? "#991b1b" : "#1e293b",
                         }}
                       >
-                        🏪 ร้าน: {group.storeName} (บิล #{orderId})
+                        🏪 ร้าน:{" "}
+                        {group.stId ? (
+                          <Link
+                            to={`/store/${group.stId}`}
+                            onClick={(e) => e.stopPropagation()}
+                            style={{
+                              color: "#2563eb",
+                              textDecoration: "underline",
+                            }}
+                          >
+                            {group.storeName}
+                          </Link>
+                        ) : (
+                          group.storeName
+                        )}{" "}
+                        (บิล #{orderId})
                       </span>
                     </label>
 
@@ -622,6 +651,9 @@ function Market() {
 
                   {/* สินค้าในร้านนั้น */}
                   {group.items.map((item) => {
+                    const isOutOfStock = (item.STOCK ?? 1) <= 0;
+                    const isExceedStock = !isOutOfStock && item.QUANTITY > item.STOCK;
+                    const isSelectable = !isClosed && !isOutOfStock;
                     const isChecked = selectedDetailIds.includes(
                       item.ORDER_DETAIL_ID,
                     );
@@ -634,8 +666,12 @@ function Market() {
                           gap: "1rem",
                           borderBottom: "1px solid #f1f5f9",
                           alignItems: "center",
-                          backgroundColor:
-                            isChecked && !isClosed ? "#f0f9ff" : "transparent",
+                          backgroundColor: isOutOfStock
+                            ? "#fafafa"
+                            : isChecked && !isClosed
+                              ? "#f0f9ff"
+                              : "transparent",
+                          opacity: isOutOfStock ? 0.75 : 1,
                           transition: "background-color 0.2s ease",
                         }}
                       >
@@ -643,50 +679,113 @@ function Market() {
                         <input
                           type="checkbox"
                           checked={isChecked}
-                          disabled={isClosed}
+                          disabled={!isSelectable}
                           onChange={() =>
-                            toggleItemSelection(item.ORDER_DETAIL_ID, !isClosed)
+                            toggleItemSelection(item.ORDER_DETAIL_ID, isSelectable)
                           }
                           style={{
                             width: "20px",
                             height: "20px",
                             accentColor: "#2563eb",
-                            cursor: isClosed ? "not-allowed" : "pointer",
+                            cursor: !isSelectable ? "not-allowed" : "pointer",
                             flexShrink: 0,
                           }}
                           title={
                             isClosed
                               ? "ร้านนี้ปิดให้บริการชั่วคราว"
-                              : "เลือกสินค้านี้เพื่อสั่งซื้อ"
+                              : isOutOfStock
+                                ? "สินค้าหมดสต็อก ไม่สามารถสั่งซื้อได้"
+                                : "เลือกสินค้านี้เพื่อสั่งซื้อ"
                           }
                         />
 
-                        <img
-                          src={item.IMAGE_URL || `https://placehold.co/100x100`}
-                          alt={item.PRODUCT_NAME}
-                          style={{
-                            width: "80px",
-                            height: "80px",
-                            objectFit: "cover",
-                            borderRadius: "6px",
-                            filter: isClosed ? "grayscale(40%)" : "none",
-                            flexShrink: 0,
-                          }}
-                        />
-                        <div style={{ flex: 1 }}>
-                          <h4 style={{ margin: "0 0 0.25rem 0" }}>
-                            {item.PRODUCT_NAME}
-                          </h4>
-                          <p
+                        <div style={{ position: "relative", flexShrink: 0 }}>
+                          <img
+                            src={item.IMAGE_URL || `https://placehold.co/100x100`}
+                            alt={item.PRODUCT_NAME}
                             style={{
-                              margin: "0 0 0.5rem 0",
-                              fontSize: "0.9rem",
-                              color: "#059669",
-                              fontWeight: "bold",
+                              width: "80px",
+                              height: "80px",
+                              objectFit: "cover",
+                              borderRadius: "6px",
+                              filter: isClosed || isOutOfStock ? "grayscale(80%)" : "none",
+                              display: "block",
                             }}
-                          >
-                            ฿{item.UNIT_PRICE.toLocaleString()}
-                          </p>
+                          />
+                          {isOutOfStock && (
+                            <div
+                              style={{
+                                position: "absolute",
+                                top: 4,
+                                left: 4,
+                                right: 4,
+                                backgroundColor: "rgba(220, 38, 38, 0.9)",
+                                color: "white",
+                                fontSize: "0.65rem",
+                                fontWeight: "bold",
+                                textAlign: "center",
+                                borderRadius: "4px",
+                                padding: "2px 0",
+                              }}
+                            >
+                              หมดสต็อก
+                            </div>
+                          )}
+                        </div>
+
+                        <div style={{ flex: 1 }}>
+                          <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", flexWrap: "wrap" }}>
+                            <h4 style={{ margin: "0 0 0.25rem 0", color: isOutOfStock ? "#64748b" : "#1e293b" }}>
+                              {item.PRODUCT_NAME}
+                            </h4>
+                            {isOutOfStock && (
+                              <span
+                                style={{
+                                  backgroundColor: "#fee2e2",
+                                  color: "#dc2626",
+                                  border: "1px solid #fca5a5",
+                                  padding: "0.1rem 0.45rem",
+                                  borderRadius: "4px",
+                                  fontSize: "0.72rem",
+                                  fontWeight: "bold",
+                                }}
+                              >
+                                🚫 สินค้าหมดสต็อก (Out of Stock)
+                              </span>
+                            )}
+                          </div>
+
+                          <div style={{ display: "flex", alignItems: "center", gap: "0.75rem", margin: "0 0 0.5rem 0", flexWrap: "wrap" }}>
+                            <span
+                              style={{
+                                fontSize: "0.9rem",
+                                color: isOutOfStock ? "#94a3b8" : "#059669",
+                                fontWeight: "bold",
+                              }}
+                            >
+                              ฿{item.UNIT_PRICE.toLocaleString()}
+                            </span>
+                            <span style={{ fontSize: "0.8rem", color: isOutOfStock ? "#dc2626" : "#64748b" }}>
+                              (คงเหลือในสต็อก: {item.STOCK ?? 0} ชิ้น)
+                            </span>
+                          </div>
+
+                          {isExceedStock && (
+                            <div
+                              style={{
+                                fontSize: "0.78rem",
+                                color: "#b45309",
+                                backgroundColor: "#fef3c7",
+                                border: "1px solid #fde68a",
+                                padding: "0.25rem 0.5rem",
+                                borderRadius: "4px",
+                                marginBottom: "0.5rem",
+                                display: "inline-block",
+                              }}
+                            >
+                              ⚠️ สินค้าในสต็อกเหลือเพียง {item.STOCK} ชิ้น กรุณาปรับลดจำนวน
+                            </div>
+                          )}
 
                           {/* ส่วนปุ่มปรับจำนวน */}
                           <div
@@ -731,6 +830,7 @@ function Market() {
                                 {item.QUANTITY}
                               </span>
                               <button
+                                disabled={isOutOfStock || item.QUANTITY >= item.STOCK}
                                 onClick={() =>
                                   handleUpdateQty(
                                     item.ORDER_DETAIL_ID,
@@ -740,10 +840,12 @@ function Market() {
                                 }
                                 style={{
                                   padding: "0.2rem 0.6rem",
-                                  background: "#f8fafc",
+                                  background: (isOutOfStock || item.QUANTITY >= item.STOCK) ? "#e2e8f0" : "#f8fafc",
                                   border: "none",
-                                  cursor: "pointer",
+                                  cursor: (isOutOfStock || item.QUANTITY >= item.STOCK) ? "not-allowed" : "pointer",
+                                  color: (isOutOfStock || item.QUANTITY >= item.STOCK) ? "#94a3b8" : "inherit",
                                 }}
+                                title={(item.QUANTITY >= item.STOCK) ? "ไม่สามารถเพิ่มได้เกินสต็อกที่มีอยู่" : ""}
                               >
                                 +
                               </button>
@@ -764,8 +866,9 @@ function Market() {
                                 cursor: "pointer",
                                 textDecoration: "underline",
                               }}
+                              title="ลบออกจากตะกร้า"
                             >
-                              ลบทิ้ง
+                              🗑️ ลบทิ้ง
                             </button>
                           </div>
                         </div>
@@ -1020,7 +1123,20 @@ function Market() {
             }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '1rem' }}>
                 <div>
-                  <h3 style={{ margin: 0 }}>ร้าน: {order.ST_NAME} (บิล #{order.ORDER_ID})</h3>
+                  <h3 style={{ margin: 0 }}>
+                    ร้าน:{" "}
+                    {order.ST_ID ? (
+                      <Link
+                        to={`/store/${order.ST_ID}`}
+                        style={{ color: "#2563eb", textDecoration: "underline" }}
+                      >
+                        {order.ST_NAME}
+                      </Link>
+                    ) : (
+                      order.ST_NAME
+                    )}{" "}
+                    (บิล #{order.ORDER_ID})
+                  </h3>
                   <small style={{ color: '#64748b' }}>
                     สั่งเมื่อ: {order.ORDER_DATE ? new Date(order.ORDER_DATE).toLocaleString() : 'เพิ่งสั่งซื้อ'}
                   </small>

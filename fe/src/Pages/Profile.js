@@ -1913,9 +1913,14 @@ function Profile() {
                             style={{
                               margin: "0 0 0.35rem 0",
                               fontSize: "1.1rem",
+                              cursor: "pointer",
                             }}
+                            onClick={() => navigate(`/store/${s.ST_ID}`)}
+                            title="คลิกเพื่อเปิดดูหน้าร้านค้า"
                           >
-                            {s.ST_NAME}{" "}
+                            <span style={{ color: "#2563eb", textDecoration: "underline" }}>
+                              {s.ST_NAME}
+                            </span>{" "}
                             <span
                               style={{ fontSize: "0.8rem", color: "#64748b" }}
                             >
@@ -1954,6 +1959,31 @@ function Profile() {
                             <span>
                               📈 Rate: <strong>{s.SELLING_RATE ?? 2.5}</strong>
                             </span>
+                          </div>
+
+                          {/* ปุ่มเปิดดูหน้าร้านค้า */}
+                          <div style={{ marginBottom: "0.5rem" }}>
+                            <button
+                              onClick={() => navigate(`/store/${s.ST_ID}`)}
+                              style={{
+                                width: "100%",
+                                padding: "0.5rem",
+                                backgroundColor: "#3b82f6",
+                                color: "white",
+                                border: "none",
+                                borderRadius: "6px",
+                                cursor: "pointer",
+                                fontWeight: "bold",
+                                fontSize: "0.85rem",
+                                display: "flex",
+                                alignItems: "center",
+                                justifyContent: "center",
+                                gap: "0.4rem",
+                                boxShadow: "0 1px 2px rgba(0,0,0,0.05)",
+                              }}
+                            >
+                              👁️ ดูหน้าร้านค้า (Store Front)
+                            </button>
                           </div>
 
                           {/* ปุ่มจัดการสินค้าในร้าน และปุ่มแก้ไขข้อมูลร้าน (เฉพาะเจ้าของร้าน หรือ Admin เท่านั้น) */}

@@ -14,6 +14,7 @@ import Register from "./Pages/Register";
 import ProductManager from "./Pages/ProductManager";
 import ShippingManager from "./Pages/ShippingManager";
 import OrderHistory from "./Pages/OrderHistory";
+import Store from "./Pages/Store";
 
 function App() {
   return (
@@ -29,6 +30,7 @@ function App() {
           <Routes>
             <Route path="/" element={<Home />} />
             <Route path="/product/:id" element={<Product />} />
+            <Route path="/store/:stId" element={<Store />} />
             <Route path="/login" element={<Login />} />
             <Route path="/profile" element={<Profile />} />
             <Route path="/market" element={<Market />} />

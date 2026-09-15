@@ -44,15 +44,29 @@ app.get("/api/products", async (req, res) => {
   try {
     connection = await oracledb.getConnection();
     // JOIN ตาราง PRODUCT และ STORE
-    const sql = `
-      SELECT p.PRODUCT_ID, p.PRODUCT_NAME, p.PRODUCT_PRICE, p.TYPE, p.IMAGE_URL, p.STOCK,
-             s.ST_ID, s.ST_NAME, a.PROVINCE AS LOCATION, s.IS_OPEN, s.RATING_POINT, s.SELLING_RATE 
-      FROM PRODUCT p
-      JOIN STORE s ON p.ST_ID = s.ST_ID
-      LEFT JOIN ADDRESS a ON s.ADDRESS_ID = a.ADDRESS_ID
-    `;
-    const result = await connection.execute(sql);
-    let items = [...result.rows];
+    let items = [];
+    try {
+      const sql = `
+        SELECT p.PRODUCT_ID, p.PRODUCT_NAME, p.PRODUCT_PRICE, p.TYPE, p.IMAGE_URL, p.STOCK,
+               s.ST_ID, s.ST_NAME, a.PROVINCE AS LOCATION, s.IS_OPEN, s.RATING_POINT, s.SELLING_RATE,
+               p.RATING
+        FROM PRODUCT p
+        JOIN STORE s ON p.ST_ID = s.ST_ID
+        LEFT JOIN ADDRESS a ON s.ADDRESS_ID = a.ADDRESS_ID
+      `;
+      const result = await connection.execute(sql);
+      items = [...result.rows];
+    } catch (colErr) {
+      const sqlFallback = `
+        SELECT p.PRODUCT_ID, p.PRODUCT_NAME, p.PRODUCT_PRICE, p.TYPE, p.IMAGE_URL, p.STOCK,
+               s.ST_ID, s.ST_NAME, a.PROVINCE AS LOCATION, s.IS_OPEN, s.RATING_POINT, s.SELLING_RATE
+        FROM PRODUCT p
+        JOIN STORE s ON p.ST_ID = s.ST_ID
+        LEFT JOIN ADDRESS a ON s.ADDRESS_ID = a.ADDRESS_ID
+      `;
+      const result = await connection.execute(sqlFallback);
+      items = result.rows.map(r => ({ ...r, RATING: 0 }));
+    }
 
     // กรณีเลือกสุ่มลำดับสินค้า (Shuffle)
     if (shuffle === 'true') {
@@ -291,6 +305,27 @@ app.post("/api/checkout", async (req, res) => {
   let connection;
   try {
     connection = await oracledb.getConnection();
+
+    // ตรวจสอบสต็อกสินค้าก่อน
+    for (let item of cartItems) {
+      const stockRes = await connection.execute(
+        `SELECT STOCK, PRODUCT_NAME FROM PRODUCT WHERE PRODUCT_ID = :1`,
+        [item.PRODUCT_ID]
+      );
+      if (stockRes.rows.length === 0) {
+        return res.status(404).json({ error: "ไม่พบสินค้าในระบบ" });
+      }
+      const stock = stockRes.rows[0].STOCK;
+      if (stock <= 0) {
+        return res.status(400).json({ error: `สินค้า "${stockRes.rows[0].PRODUCT_NAME}" หมดสต็อกแล้ว` });
+      }
+      if (stock < item.qty) {
+        return res.status(400).json({
+          error: `สินค้า "${stockRes.rows[0].PRODUCT_NAME}" มีสินค้าไม่พอ (เหลือ ${stock} ชิ้น แต่สั่ง ${item.qty} ชิ้น)`
+        });
+      }
+    }
+
     const storeRes = await connection.execute(`SELECT ADDRESS_ID FROM STORE WHERE ST_ID = :1`, [stId]);
     const originAddressId = storeRes.rows.length > 0 ? storeRes.rows[0].ADDRESS_ID : null;
     const orderResult = await connection.execute(`SELECT NVL(MAX(ORDER_ID), 0) + 1 AS NEW_ID FROM ORDERS`);
@@ -301,7 +336,7 @@ app.post("/api/checkout", async (req, res) => {
       [newOrderId, acId, stId, totalPrice, originAddressId, destAddressId, paymentMethod || 'Cash']
     );
 
-    // 3. Insert ลงตาราง ORDER_DETAIL
+    // 3. Insert ลงตาราง ORDER_DETAIL และตัดสต็อกสินค้า
     for (let item of cartItems) {
       const detailResult = await connection.execute(
         `SELECT NVL(MAX(ORDER_DETAIL_ID), 0) + 1 AS NEW_DT_ID FROM ORDER_DETAIL`,
@@ -316,6 +351,12 @@ app.post("/api/checkout", async (req, res) => {
           item.qty,
           item.PRODUCT_PRICE,
         ],
+      );
+
+      // ตัดสต็อกสินค้า
+      await connection.execute(
+        `UPDATE PRODUCT SET STOCK = STOCK - :1 WHERE PRODUCT_ID = :2`,
+        [item.qty, item.PRODUCT_ID]
       );
     }
     res.json({ message: "สั่งซื้อสำเร็จ!", orderId: newOrderId });
@@ -339,6 +380,20 @@ app.post("/api/cart/add", async (req, res) => {
   let connection;
   try {
     connection = await oracledb.getConnection();
+
+    // 0. ตรวจสอบสต็อกสินค้าปัจจุบัน
+    const prodCheck = await connection.execute(
+      `SELECT STOCK, PRODUCT_NAME FROM PRODUCT WHERE PRODUCT_ID = :1`,
+      [productId]
+    );
+    if (prodCheck.rows.length === 0) {
+      return res.status(404).json({ error: "ไม่พบสินค้าในระบบ" });
+    }
+    const currentStock = prodCheck.rows[0].STOCK;
+    const productName = prodCheck.rows[0].PRODUCT_NAME;
+    if (currentStock <= 0) {
+      return res.status(400).json({ error: `ขออภัย สินค้า "${productName}" หมดสต็อกแล้ว` });
+    }
 
     // 1. หาว่ามีบิลของร้านนี้ (stId) ที่ตั้งสถานะเป็น 'Cart' ไว้ให้คนนี้ (acId) หรือยัง?
     let orderResult = await connection.execute(
@@ -369,12 +424,24 @@ app.post("/api/cart/add", async (req, res) => {
     );
 
     if (detailRes.rows.length > 0) {
+      const existingQty = detailRes.rows[0].QUANTITY;
+      const newTotalQty = existingQty + qty;
+      if (newTotalQty > currentStock) {
+        return res.status(400).json({
+          error: `ไม่สามารถเพิ่มสินค้าได้: สินค้า "${productName}" มีเหลือในสต็อก ${currentStock} ชิ้น (ในตะกร้าของคุณมีแล้ว ${existingQty} ชิ้น)`
+        });
+      }
       // ถ้ามีแล้ว: ให้อัปเดตบวกจำนวนเพิ่ม
       await connection.execute(
         `UPDATE ORDER_DETAIL SET QUANTITY = QUANTITY + :1 WHERE ORDER_DETAIL_ID = :2`,
         [qty, detailRes.rows[0].ORDER_DETAIL_ID],
       );
     } else {
+      if (qty > currentStock) {
+        return res.status(400).json({
+          error: `ไม่สามารถเพิ่มสินค้าได้: สินค้า "${productName}" มีเหลือในสต็อก ${currentStock} ชิ้น`
+        });
+      }
       // ถ้ายังไม่มี: ให้สร้างไอเทมใหม่ในบิล
       const newDtIdRes = await connection.execute(
         `SELECT NVL(MAX(ORDER_DETAIL_ID), 0) + 1 AS NEW_DT_ID FROM ORDER_DETAIL`,
@@ -414,11 +481,11 @@ app.get('/api/cart/:acId', async (req, res) => {
   let connection;
   try {
     connection = await oracledb.getConnection();
-    // 💡 ดึง ORDER ที่เป็น 'Cart' พร้อม JOIN รายละเอียดสินค้าและชื่อร้าน
+    // 💡 ดึง ORDER ที่เป็น 'Cart' พร้อม JOIN รายละเอียดสินค้า, ชื่อร้าน และสต็อกสินค้า
     const sql = `
       SELECT o.ORDER_ID, o.ST_ID, s.ST_NAME, s.IS_OPEN, 
              od.ORDER_DETAIL_ID, od.PRODUCT_ID, p.PRODUCT_NAME, p.IMAGE_URL,
-             od.QUANTITY, od.UNIT_PRICE
+             od.QUANTITY, od.UNIT_PRICE, p.STOCK
       FROM ORDERS o
       JOIN STORE s ON o.ST_ID = s.ST_ID
       JOIN ORDER_DETAIL od ON o.ORDER_ID = od.ORDER_ID
@@ -456,9 +523,10 @@ app.post('/api/cart/checkout', async (req, res) => {
     if (selectedDetailIds && Array.isArray(selectedDetailIds) && selectedDetailIds.length > 0) {
       const placeholders = selectedDetailIds.map((_, idx) => `:${idx + 1}`).join(', ');
 
-      // 1. Fetch details including Product dimensions & weight
+      // 1. Fetch details including Product dimensions, weight & stock
       const detailsRes = await connection.execute(
-        `SELECT od.ORDER_DETAIL_ID, od.ORDER_ID, od.QUANTITY, od.UNIT_PRICE,
+        `SELECT od.ORDER_DETAIL_ID, od.ORDER_ID, od.PRODUCT_ID, od.QUANTITY, od.UNIT_PRICE,
+                p.PRODUCT_NAME, p.STOCK,
                 p.WEIGHT, p.WIDTH, p.LENGTH, p.HEIGHT,
                 o.AC_ID, o.ST_ID, s.ST_NAME, s.IS_OPEN, s.ADDRESS_ID AS ORIGIN_ADDRESS_ID
          FROM ORDER_DETAIL od
@@ -474,6 +542,20 @@ app.post('/api/cart/checkout', async (req, res) => {
       const closedStoreItem = detailsRes.rows.find(item => item.IS_OPEN === 'N');
       if (closedStoreItem) {
         return res.status(400).json({ error: `ไม่สามารถสั่งซื้อได้: ร้าน "${closedStoreItem.ST_NAME}" ปิดให้บริการชั่วคราว` });
+      }
+
+      // ตรวจสอบสต็อกสินค้าก่อนดำเนินการสั่งซื้อ
+      for (const item of detailsRes.rows) {
+        if (item.STOCK <= 0) {
+          return res.status(400).json({
+            error: `ไม่สามารถสั่งซื้อได้: สินค้า "${item.PRODUCT_NAME}" หมดสต็อกแล้ว`
+          });
+        }
+        if (item.STOCK < item.QUANTITY) {
+          return res.status(400).json({
+            error: `ไม่สามารถสั่งซื้อได้: สินค้า "${item.PRODUCT_NAME}" มีสินค้าคงเหลือไม่เพียงพอ (เหลือ ${item.STOCK} ชิ้น แต่ต้องการสั่งซื้อ ${item.QUANTITY} ชิ้น)`
+          });
+        }
       }
 
       // Group by old ORDER_ID
@@ -648,6 +730,14 @@ app.post('/api/cart/checkout', async (req, res) => {
             [oldOrderId]
           );
         }
+
+        // ตัดสต็อกสินค้าที่สั่งซื้อสำเร็จ
+        for (const item of selItems) {
+          await connection.execute(
+            `UPDATE PRODUCT SET STOCK = STOCK - :1 WHERE PRODUCT_ID = :2`,
+            [item.QUANTITY, item.PRODUCT_ID]
+          );
+        }
       }
       return res.json({ message: 'สั่งซื้อสินค้าที่เลือกสำเร็จ!' });
     }
@@ -671,6 +761,23 @@ app.put('/api/cart/update', async (req, res) => {
       // ถ้าจำนวนเหลือ 0 หรือสั่งลบ ให้ลบออกจาก ORDER_DETAIL เลย
       await connection.execute(`DELETE FROM ORDER_DETAIL WHERE ORDER_DETAIL_ID = :1`, [orderDetailId]);
     } else {
+      // ตรวจสอบสต็อกสินค้าก่อนอัปเดต
+      const prodCheck = await connection.execute(
+        `SELECT p.STOCK, p.PRODUCT_NAME 
+         FROM ORDER_DETAIL od 
+         JOIN PRODUCT p ON od.PRODUCT_ID = p.PRODUCT_ID 
+         WHERE od.ORDER_DETAIL_ID = :1`,
+        [orderDetailId]
+      );
+      if (prodCheck.rows.length > 0) {
+        const availableStock = prodCheck.rows[0].STOCK;
+        if (newQty > availableStock) {
+          return res.status(400).json({
+            error: `ไม่สามารถเพิ่มจำนวนได้: สินค้า "${prodCheck.rows[0].PRODUCT_NAME}" มีเหลือในสต็อกเพียง ${availableStock} ชิ้น`
+          });
+        }
+      }
+
       // อัปเดตจำนวนสินค้าใหม่
       await connection.execute(`UPDATE ORDER_DETAIL SET QUANTITY = :1 WHERE ORDER_DETAIL_ID = :2`, [newQty, orderDetailId]);
     }
@@ -1045,8 +1152,24 @@ app.get('/api/stores/:stId', async (req, res) => {
       LEFT JOIN ADDRESS a ON s.ADDRESS_ID = a.ADDRESS_ID
       WHERE s.ST_ID = :1
     `, [req.params.stId]);
+
     if (result.rows.length > 0) {
-      res.json(result.rows[0]);
+      const storeData = { ...result.rows[0] };
+      // ดึงบริการจัดส่งที่ร้านค้ารองรับเพิ่มเติม
+      try {
+        const servicesRes = await connection.execute(
+          `SELECT d.DVSERVICE_ID, d.DVSERVICE_NAME, sd.IS_PICKUP_ENABLED, sd.IS_DROPOFF_ENABLED
+           FROM SHOP_DVSERVICE sd
+           JOIN DVSERVICE d ON sd.DVSERVICE_ID = d.DVSERVICE_ID
+           WHERE sd.ST_ID = :1 AND sd.IS_ACTIVE = 'Y'`,
+          [req.params.stId]
+        );
+        storeData.services = servicesRes.rows;
+      } catch (svcErr) {
+        storeData.services = [];
+      }
+
+      res.json(storeData);
     } else {
       res.status(404).json({ error: "ไม่พบข้อมูลร้านค้านี้" });
     }
@@ -1058,21 +1181,39 @@ app.get('/api/stores/:stId', async (req, res) => {
 });
 
 // =====================================
-// API: ดึงสินค้าทั้งหมดของร้านค้าหนึ่งๆ (Product Manager)
+// API: ดึงสินค้าทั้งหมดของร้านค้าหนึ่งๆ (Product Manager & Store Page)
 // =====================================
 app.get('/api/stores/:stId/products', async (req, res) => {
   let connection;
   try {
     connection = await oracledb.getConnection();
-    const result = await connection.execute(
-      `SELECT p.PRODUCT_ID, p.PRODUCT_NAME, p.TYPE, p.PRODUCT_PRICE, p.STOCK, 
-              p.IMAGE_URL, p.DESCRIPTION, p.WEIGHT, p.WIDTH, p.LENGTH, p.HEIGHT, p.ST_ID
-       FROM PRODUCT p 
-       WHERE p.ST_ID = :1 
-       ORDER BY p.PRODUCT_ID DESC`,
-      [req.params.stId]
-    );
-    res.json(result.rows);
+    let rows = [];
+    try {
+      const result = await connection.execute(
+        `SELECT p.PRODUCT_ID, p.PRODUCT_NAME, p.TYPE, p.PRODUCT_PRICE, p.STOCK, 
+                p.IMAGE_URL, p.DESCRIPTION, p.WEIGHT, p.WIDTH, p.LENGTH, p.HEIGHT, p.ST_ID,
+                s.ST_NAME, s.IS_OPEN, s.RATING_POINT, p.RATING
+         FROM PRODUCT p
+         JOIN STORE s ON p.ST_ID = s.ST_ID
+         WHERE p.ST_ID = :1 
+         ORDER BY p.PRODUCT_ID DESC`,
+        [req.params.stId]
+      );
+      rows = result.rows;
+    } catch (colErr) {
+      const result = await connection.execute(
+        `SELECT p.PRODUCT_ID, p.PRODUCT_NAME, p.TYPE, p.PRODUCT_PRICE, p.STOCK, 
+                p.IMAGE_URL, p.DESCRIPTION, p.WEIGHT, p.WIDTH, p.LENGTH, p.HEIGHT, p.ST_ID,
+                s.ST_NAME, s.IS_OPEN, s.RATING_POINT
+         FROM PRODUCT p
+         JOIN STORE s ON p.ST_ID = s.ST_ID
+         WHERE p.ST_ID = :1 
+         ORDER BY p.PRODUCT_ID DESC`,
+        [req.params.stId]
+      );
+      rows = result.rows.map(r => ({ ...r, RATING: 0 }));
+    }
+    res.json(rows);
   } catch (err) {
     res.status(500).json({ error: err.message });
   } finally {
@@ -1818,11 +1959,107 @@ app.post('/api/orders/:orderId/receive', async (req, res) => {
   let connection;
   try {
     connection = await oracledb.getConnection();
+    // 1. อัปเดตสถานะและคะแนนรีวิวของ Order
     await connection.execute(
       `UPDATE ORDERS SET STATUS = 'Reviewed', RATING = :1 WHERE ORDER_ID = :2`,
-      [rating, orderId]
+      [rating, orderId],
+      { autoCommit: true }
     );
-    res.json({ message: 'Received and Reviewed' });
+
+    // 2. ดึงข้อมูล ST_ID และรายการสินค้าใน Order นี้
+    const orderInfoRes = await connection.execute(
+      `SELECT o.ST_ID, od.PRODUCT_ID
+       FROM ORDERS o
+       JOIN ORDER_DETAIL od ON o.ORDER_ID = od.ORDER_ID
+       WHERE o.ORDER_ID = :1`,
+      [orderId]
+    );
+
+    if (orderInfoRes.rows.length > 0) {
+      const stId = orderInfoRes.rows[0].ST_ID;
+      const productIds = [...new Set(orderInfoRes.rows.map((r) => r.PRODUCT_ID))];
+
+      // 3. คำนวณและอัปเดต Rating ของแต่ละสินค้าใน Order
+      for (const prodId of productIds) {
+        try {
+          const prodRatingRes = await connection.execute(
+            `SELECT NVL(ROUND(AVG(o.RATING), 2), 0) AS PROD_RATING
+             FROM ORDERS o
+             JOIN ORDER_DETAIL od ON o.ORDER_ID = od.ORDER_ID
+             WHERE od.PRODUCT_ID = :1
+               AND o.STATUS = 'Reviewed'
+               AND o.RATING IS NOT NULL`,
+            [prodId]
+          );
+          const newProdRating = prodRatingRes.rows[0]?.PROD_RATING || 0;
+          await connection.execute(
+            `UPDATE PRODUCT SET RATING = :1 WHERE PRODUCT_ID = :2`,
+            [newProdRating, prodId],
+            { autoCommit: true }
+          );
+        } catch (colErr) {
+          // หากตาราง PRODUCT ยังไม่ได้เพิ่มคอลัมน์ RATING ให้ข้ามไปก่อนได้ ไม่ทำให้ request ล้มเหลว
+          console.warn(`Note: Could not update PRODUCT.RATING for product ${prodId}:`, colErr.message);
+        }
+      }
+
+      // 4. คำนวณและอัปเดต Rating ของร้านค้า (STORE.RATING_POINT)
+      // เอา Rating ของสินค้าแต่ละชิ้นของร้านมาหาค่าเฉลี่ย
+      try {
+        let storeRating = 0;
+        try {
+          const storeRatingRes = await connection.execute(
+            `SELECT NVL(ROUND(AVG(p.RATING), 2), 0) AS STORE_RATING
+             FROM PRODUCT p
+             WHERE p.ST_ID = :1 AND p.RATING > 0`,
+            [stId]
+          );
+          storeRating = storeRatingRes.rows[0]?.STORE_RATING || 0;
+        } catch (colErr) {
+          // Fallback ถ้ายังไม่มีคอลัมน์ RATING ใน PRODUCT ให้คำนวณจาก orders ที่รีวิวแล้วของร้าน
+          const fallbackRes = await connection.execute(
+            `SELECT NVL(ROUND(AVG(o.RATING), 2), 0) AS STORE_RATING
+             FROM ORDERS o
+             WHERE o.ST_ID = :1 AND o.STATUS = 'Reviewed' AND o.RATING IS NOT NULL`,
+            [stId]
+          );
+          storeRating = fallbackRes.rows[0]?.STORE_RATING || 0;
+        }
+
+        if (storeRating > 0) {
+          await connection.execute(
+            `UPDATE STORE SET RATING_POINT = :1 WHERE ST_ID = :2`,
+            [storeRating, stId],
+            { autoCommit: true }
+          );
+        }
+      } catch (stRatingErr) {
+        console.warn(`Could not update STORE.RATING_POINT for store ${stId}:`, stRatingErr.message);
+      }
+
+      // 5. คำนวณและอัปเดต Selling Rate ของร้านค้า (STORE.SELLING_RATE)
+      // เป็นผลรวมจำนวนสินค้าทั้งหมดที่ขายได้แล้ว
+      try {
+        const sellingRes = await connection.execute(
+          `SELECT NVL(SUM(od.QUANTITY), 0) AS TOTAL_SOLD
+           FROM ORDERS o
+           JOIN ORDER_DETAIL od ON o.ORDER_ID = od.ORDER_ID
+           WHERE o.ST_ID = :1
+             AND o.STATUS IN ('Pending', 'Delivered', 'Reviewed')`,
+          [stId]
+        );
+        const totalSold = sellingRes.rows[0]?.TOTAL_SOLD || 0;
+        await connection.execute(
+          `UPDATE STORE SET SELLING_RATE = :1 WHERE ST_ID = :2`,
+          [totalSold, stId],
+          { autoCommit: true }
+        );
+      } catch (sellErr) {
+        console.warn(`Could not update STORE.SELLING_RATE for store ${stId}:`, sellErr.message);
+      }
+    }
+
+    res.json({ message: 'Received and Reviewed successfully' });
   } catch (err) {
     res.status(500).json({ error: err.message });
   } finally {
