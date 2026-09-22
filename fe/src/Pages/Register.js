@@ -95,8 +95,9 @@ function Register() {
           />
           <input
             type="password"
-            placeholder="Password"
+            placeholder="Password (อย่างน้อย 6 ตัวอักษร)"
             required
+            minLength={6}
             onChange={(e) => setFormData({ ...formData, password: e.target.value })}
             style={{ padding: "0.6rem", flex: 1 }}
           />
@@ -130,7 +131,9 @@ function Register() {
         <div style={{ display: "flex", gap: "1rem" }}>
           <input
             type="tel"
-            placeholder="เบอร์โทรศัพท์ (PHONE)"
+            placeholder="เบอร์โทรศัพท์ (10 หลัก)"
+            pattern="[0-9]{10}"
+            title="กรุณากรอกเบอร์โทรศัพท์เป็นตัวเลข 10 หลัก"
             onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
             style={{ padding: "0.6rem", flex: 1 }}
           />
@@ -164,8 +167,7 @@ function Register() {
             >
               <option value="Customer">ฝ่ายซื้อ (Customer)</option>
               <option value="Seller">ฝ่ายขาย (Seller)</option>
-              <option value="Employee">พนักงานบริษัท (Employee)</option>
-              <option value="Admin">ผู้ดูแลระบบ (Admin)</option>
+
             </select>
           </label>
         </div>

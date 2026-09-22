@@ -16,6 +16,8 @@ import ProductManager from "./Pages/ProductManager";
 import ShippingManager from "./Pages/ShippingManager";
 import OrderHistory from "./Pages/OrderHistory";
 import Store from "./Pages/Store";
+import ManageUsers from "./Pages/ManageUsers";
+import ManageEmployees from "./Pages/ManageEmployees";
 
 function App() {
   return (
@@ -43,6 +45,8 @@ function App() {
                 element={<ProductManager />}
               />
               <Route path="/shipping-manager" element={<ShippingManager />} />
+              <Route path="/admin/manage-users" element={<ManageUsers />} />
+              <Route path="/admin/manage-employees" element={<ManageEmployees />} />
               <Route
                 path="*"
                 element={

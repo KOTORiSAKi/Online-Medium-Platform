@@ -53,6 +53,7 @@ app.get("/api/products", async (req, res) => {
         FROM PRODUCT p
         JOIN STORE s ON p.ST_ID = s.ST_ID
         LEFT JOIN ADDRESS a ON s.ADDRESS_ID = a.ADDRESS_ID
+        WHERE p.IS_ACTIVE = 'Y' AND s.IS_ACTIVE = 'Y'
       `;
       const result = await connection.execute(sql);
       items = [...result.rows];
@@ -63,6 +64,7 @@ app.get("/api/products", async (req, res) => {
         FROM PRODUCT p
         JOIN STORE s ON p.ST_ID = s.ST_ID
         LEFT JOIN ADDRESS a ON s.ADDRESS_ID = a.ADDRESS_ID
+        WHERE p.IS_ACTIVE = 'Y' AND s.IS_ACTIVE = 'Y'
       `;
       const result = await connection.execute(sqlFallback);
       items = result.rows.map(r => ({ ...r, RATING: 0 }));
@@ -159,10 +161,21 @@ app.get("/api/products", async (req, res) => {
     if (connection) {
       try {
         await connection.close();
-      } catch (err) { }
-    }
-  }
-});
+        res.status(500).json({ error: err.message });
+      } finally {
+        if (connection) {
+          try {
+            await connection.close();
+          } catch (err) { }
+        }
+      }
+    }} });
+
+
+// =====================================
+// API: Admin / Employee Management
+// =====================================
+
 
 // =====================================
 // API 2: ดึงรายละเอียดสินค้า 1 ชิ้นตาม ID
@@ -176,7 +189,7 @@ app.get("/api/products/:id", async (req, res) => {
       FROM PRODUCT p
       JOIN STORE s ON p.ST_ID = s.ST_ID
       LEFT JOIN ADDRESS a ON s.ADDRESS_ID = a.ADDRESS_ID
-      WHERE p.PRODUCT_ID = :id
+      WHERE p.PRODUCT_ID = :id AND p.IS_ACTIVE = 'Y' AND s.IS_ACTIVE = 'Y'
     `;
     const result = await connection.execute(sql, [req.params.id]);
 
@@ -197,7 +210,85 @@ app.get("/api/products/:id", async (req, res) => {
   }
 });
 
+app.get('/api/admin/users-and-stores', async (req, res) => {
+  let connection;
+  try {
+    connection = await oracledb.getConnection();
+    const usersRes = await connection.execute(`SELECT * FROM ACCOUNT WHERE IS_ACTIVE = 'Y' ORDER BY AC_ID`);
+    const storesRes = await connection.execute(`SELECT * FROM STORE WHERE IS_ACTIVE = 'Y' ORDER BY ST_ID`);
+
+    res.json({ users: usersRes.rows, stores: storesRes.rows });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  } finally {
+    if (connection) { try { await connection.close(); } catch (e) { } }
+  }
+});
+
+app.put('/api/admin/users/:acId', async (req, res) => {
+  const { acId } = req.params;
+  const { type, fname, lname, email, phone, gender, username, password } = req.body;
+  let connection;
+  try {
+    connection = await oracledb.getConnection();
+    let sql = `UPDATE ACCOUNT SET TYPE = :type, FNAME = :fname, LNAME = :lname, EMAIL = :email, PHONE = :phone, GENDER = :gender, USERNAME = :username`;
+    const binds = { type, fname, lname, email, phone, gender, username, acId };
+
+    if (password) {
+      sql += `, PASSWORD = :password`;
+      binds.password = password;
+    }
+    sql += ` WHERE AC_ID = :acId`;
+
+    await connection.execute(sql, binds, { autoCommit: true });
+
+    // หาก Admin เปลี่ยนบทบาทเป็น Employee หรือ Customer ให้ปิดร้านค้าของ User นี้ด้วย
+    if (type === 'Employee' || type === 'Customer') {
+      await connection.execute(`UPDATE STORE SET IS_OPEN = 'N' WHERE AC_ID = :1`, [acId], { autoCommit: true });
+    }
+
+    res.json({ message: 'User updated successfully' });
+  } catch (err) {
+    if (err.message && err.message.includes('ORA-00001')) {
+      res.status(400).json({ error: 'Username หรือ Email นี้มีผู้ใช้งานแล้ว' });
+    } else {
+      res.status(500).json({ error: err.message });
+    }
+  } finally {
+    if (connection) { try { await connection.close(); } catch (e) { } }
+  }
+});
+
+app.put('/api/admin/stores/:stId/reassign', async (req, res) => {
+  const { stId } = req.params;
+  const { newAcId } = req.body; // if null/empty, means remove owner
+  let connection;
+  try {
+    connection = await oracledb.getConnection();
+    if (newAcId) {
+      await connection.execute(
+        `UPDATE STORE SET AC_ID = :1, IS_OPEN = 'Y' WHERE ST_ID = :2`,
+        [newAcId, stId],
+        { autoCommit: true }
+      );
+    } else {
+      // Remove owner, close store
+      await connection.execute(
+        `UPDATE STORE SET AC_ID = NULL, IS_OPEN = 'N' WHERE ST_ID = :1`,
+        [stId],
+        { autoCommit: true }
+      );
+    }
+    res.json({ message: 'Store reassigned successfully' });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  } finally {
+    if (connection) { try { await connection.close(); } catch (e) { } }
+  }
+});
+
 // เริ่มต้น Database ก่อน แล้วค่อยรัน Express Server
+
 initializeDB().then(() => {
   const PORT = process.env.PORT || 5000;
   app.listen(PORT, () => {
@@ -219,7 +310,7 @@ app.post("/api/login", async (req, res) => {
              TO_CHAR(REGISTERED_DATE, 'YYYY-MM-DD HH24:MI:SS') AS REGISTERED_DATE,
              TO_CHAR(REGISTERED_DATE, 'YYYY-MM-DD HH24:MI:SS') AS REGISTED_DATE
       FROM ACCOUNT 
-      WHERE EMAIL = :email AND PASSWORD = :password
+      WHERE EMAIL = :email AND PASSWORD = :password AND IS_ACTIVE = 'Y'
     `;
     const result = await connection.execute(sql, { email, password });
 
@@ -332,7 +423,7 @@ app.post("/api/checkout", async (req, res) => {
     const newOrderId = orderResult.rows[0].NEW_ID;
     await connection.execute(
       `INSERT INTO ORDERS (ORDER_ID, AC_ID, ST_ID, ORDER_DATE, STATUS, TOTAL_PRICE, ORIGIN_ADDRESS_ID, DEST_ADDRESS_ID, PAYMENT_METHOD, PAYMENT_STATUS) 
-       VALUES (:1, :2, :3, SYSDATE, 'Pending', :4, :5, :6, :7, 'Pending')`,
+       VALUES (:1, :2, :3, SYSDATE, 'Pending', :4, :5, :6, :7, CASE WHEN :7 = 'Cash' THEN 'Pending' ELSE 'Approved' END)`,
       [newOrderId, acId, stId, totalPrice, originAddressId, destAddressId, paymentMethod || 'Cash']
     );
 
@@ -1128,7 +1219,7 @@ app.delete('/api/auth/delete/:id', async (req, res) => {
   let connection;
   try {
     connection = await oracledb.getConnection();
-    await connection.execute(`DELETE FROM ACCOUNT WHERE AC_ID = :1`, [req.params.id]);
+    await connection.execute(`UPDATE ACCOUNT SET IS_ACTIVE = 'N' WHERE AC_ID = :1`, [req.params.id]);
     res.json({ message: 'ลบบัญชีของคุณเรียบร้อยแล้ว' });
   } catch (err) {
     res.status(500).json({ error: 'ไม่สามารถลบได้ อาจมีข้อมูลผูกอยู่ (เช่น บิลคำสั่งซื้อ)' });
@@ -1150,7 +1241,7 @@ app.get('/api/stores/:stId', async (req, res) => {
              NVL(a.PROVINCE, 'ไม่ระบุที่อยู่') AS LOCATION
       FROM STORE s
       LEFT JOIN ADDRESS a ON s.ADDRESS_ID = a.ADDRESS_ID
-      WHERE s.ST_ID = :1
+      WHERE s.ST_ID = :1 AND s.IS_ACTIVE = 'Y'
     `, [req.params.stId]);
 
     if (result.rows.length > 0) {
@@ -1195,7 +1286,7 @@ app.get('/api/stores/:stId/products', async (req, res) => {
                 s.ST_NAME, s.IS_OPEN, s.RATING_POINT, p.RATING
          FROM PRODUCT p
          JOIN STORE s ON p.ST_ID = s.ST_ID
-         WHERE p.ST_ID = :1 
+         WHERE p.ST_ID = :1 AND p.IS_ACTIVE = 'Y' 
          ORDER BY p.PRODUCT_ID DESC`,
         [req.params.stId]
       );
@@ -1207,7 +1298,7 @@ app.get('/api/stores/:stId/products', async (req, res) => {
                 s.ST_NAME, s.IS_OPEN, s.RATING_POINT
          FROM PRODUCT p
          JOIN STORE s ON p.ST_ID = s.ST_ID
-         WHERE p.ST_ID = :1 
+         WHERE p.ST_ID = :1 AND p.IS_ACTIVE = 'Y' 
          ORDER BY p.PRODUCT_ID DESC`,
         [req.params.stId]
       );
@@ -1345,6 +1436,23 @@ app.put('/api/products/:id', async (req, res) => {
   }
 });
 
+
+// =====================================
+// API: ลบร้านค้า (Soft Delete)
+// =====================================
+app.delete('/api/stores/:id', async (req, res) => {
+  let connection;
+  try {
+    connection = await oracledb.getConnection();
+    await connection.execute(`UPDATE STORE SET IS_ACTIVE = 'N', IS_OPEN = 'N' WHERE ST_ID = :1`, [req.params.id], { autoCommit: true });
+    res.json({ message: 'ลบร้านค้าเรียบร้อยแล้ว' });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  } finally {
+    if (connection) { try { await connection.close(); } catch (e) { } }
+  }
+});
+
 // =====================================
 // API: ลบสินค้า (เฉพาะเจ้าของร้านหรือ Admin)
 // =====================================
@@ -1373,7 +1481,7 @@ app.delete('/api/products/:id', async (req, res) => {
     }
 
     // 3. ลบสินค้า
-    await connection.execute(`DELETE FROM PRODUCT WHERE PRODUCT_ID = :1`, [req.params.id]);
+    await connection.execute(`UPDATE PRODUCT SET IS_ACTIVE = 'N' WHERE PRODUCT_ID = :1`, [req.params.id]);
     res.json({ message: "ลบสินค้าสำเร็จเรียบร้อยแล้ว!" });
   } catch (err) {
     res.status(500).json({ error: "ไม่สามารถลบสินค้านี้ได้ เนื่องจากอาจมีประวัติอยู่ในใบสั่งซื้อ (Order Detail)" });
@@ -1748,7 +1856,7 @@ app.post('/api/cart/calculate-shipping', async (req, res) => {
       const stRes = await connection.execute(
         `SELECT a.PROVINCE FROM STORE s 
          JOIN ADDRESS a ON s.ADDRESS_ID = a.ADDRESS_ID 
-         WHERE s.ST_ID = :1`,
+         WHERE s.ST_ID = :1 AND s.IS_ACTIVE = 'Y'`,
         [data.ST_ID]
       );
       if (stRes.rows.length > 0) sellerProvince = stRes.rows[0].PROVINCE;
@@ -1961,7 +2069,7 @@ app.post('/api/orders/:orderId/receive', async (req, res) => {
     connection = await oracledb.getConnection();
     // 1. อัปเดตสถานะและคะแนนรีวิวของ Order
     await connection.execute(
-      `UPDATE ORDERS SET STATUS = 'Reviewed', RATING = :1 WHERE ORDER_ID = :2`,
+      `UPDATE ORDERS SET STATUS = 'Reviewed', RATING = :1, PAYMENT_STATUS = 'Approved' WHERE ORDER_ID = :2`,
       [rating, orderId],
       { autoCommit: true }
     );

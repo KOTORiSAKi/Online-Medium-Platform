@@ -774,6 +774,7 @@ function Navbar() {
             <NavLink to="/profile" style={linkStyle}>
               โปรไฟล์
             </NavLink>
+
             {user ? (
               <button
                 onClick={handleLogout}

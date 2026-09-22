@@ -861,7 +861,8 @@ function Profile() {
                 </label>
                 <input
                   type="password"
-                  placeholder="รหัสผ่านใหม่"
+                  placeholder="รหัสผ่านใหม่ (อย่างน้อย 6 ตัวอักษร)"
+                  minLength={6}
                   value={editForm.newPassword}
                   onChange={(e) =>
                     setEditForm({ ...editForm, newPassword: e.target.value })
@@ -960,6 +961,9 @@ function Profile() {
                 </label>
                 <input
                   type="tel"
+                  placeholder="เบอร์โทรศัพท์ (10 หลัก)"
+                  pattern="[0-9]{10}"
+                  title="กรุณากรอกเบอร์โทรศัพท์เป็นตัวเลข 10 หลัก"
                   value={editForm.newPhone}
                   onChange={(e) =>
                     setEditForm({ ...editForm, newPhone: e.target.value })
@@ -2115,31 +2119,33 @@ function Profile() {
           📋 เมนูและสิทธิ์การใช้งาน (Role: {user.TYPE})
         </h3>
         <div style={{ display: "flex", gap: "0.75rem", flexWrap: "wrap" }}>
+          {user.TYPE === "Admin" && (
+            <button
+              onClick={() => navigate("/admin/manage-employees")}
+              style={{
+                padding: "0.75rem 1rem",
+                background: "#fef3c7",
+                border: "1px solid #f59e0b",
+                borderRadius: "8px",
+                cursor: "pointer",
+              }}
+            >
+              👨‍💼 จัดการข้อมูลพนักงาน
+            </button>
+          )}
           {isAdminOrEmployee && (
-            <>
-              <button
-                style={{
-                  padding: "0.75rem 1rem",
-                  background: "#fef3c7",
-                  border: "1px solid #f59e0b",
-                  borderRadius: "8px",
-                  cursor: "pointer",
-                }}
-              >
-                👨‍💼 จัดการข้อมูลพนักงาน
-              </button>
-              <button
-                style={{
-                  padding: "0.75rem 1rem",
-                  background: "#fef3c7",
-                  border: "1px solid #f59e0b",
-                  borderRadius: "8px",
-                  cursor: "pointer",
-                }}
-              >
-                👥 จัดการข้อมูลลูกค้า/ผู้ขาย
-              </button>
-            </>
+            <button
+              onClick={() => navigate("/admin/manage-users")}
+              style={{
+                padding: "0.75rem 1rem",
+                background: "#fef3c7",
+                border: "1px solid #f59e0b",
+                borderRadius: "8px",
+                cursor: "pointer",
+              }}
+            >
+              👥 จัดการข้อมูลลูกค้า/ผู้ขาย
+            </button>
           )}
 
           <button
