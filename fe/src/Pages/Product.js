@@ -1,7 +1,10 @@
 import React, { useState, useEffect } from "react";
 import { useParams, Link, useNavigate } from "react-router-dom";
+import { usePopup } from "../context/PopupContext";
 
 function Product() {
+  const { showAlert } = usePopup();
+
   const { id } = useParams();
   const navigate = useNavigate();
   const [product, setProduct] = useState(null);
@@ -19,13 +22,13 @@ function Product() {
 
   const handleAddToCart = async () => {
     if (product.STOCK <= 0) {
-      alert("ขออภัย สินค้านี้หมดแล้วครับ");
+      showAlert("ขออภัย สินค้านี้หมดแล้วครับ");
       return;
     }
 
     const loggedInUser = JSON.parse(localStorage.getItem("user"));
     if (!loggedInUser) {
-      alert("กรุณาเข้าสู่ระบบก่อนเพิ่มสินค้าลงตะกร้า!");
+      showAlert("กรุณาเข้าสู่ระบบก่อนเพิ่มสินค้าลงตะกร้า!");
       navigate("/login");
       return;
     }
@@ -44,11 +47,11 @@ function Product() {
       });
 
       if (res.ok) {
-        alert(`เพิ่ม "${product.PRODUCT_NAME}" ลงตะกร้าเรียบร้อยแล้ว!`);
+        showAlert(`เพิ่ม "${product.PRODUCT_NAME}" ลงตะกร้าเรียบร้อยแล้ว!`);
         navigate("/market");
       }
     } catch (err) {
-      alert("ไม่สามารถติดต่อเซิร์ฟเวอร์ได้");
+      showAlert("ไม่สามารถติดต่อเซิร์ฟเวอร์ได้");
     }
   };
 

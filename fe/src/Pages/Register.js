@@ -1,7 +1,10 @@
 import React, { useState } from "react";
 import { useNavigate, Link } from "react-router-dom";
+import { usePopup } from "../context/PopupContext";
 
 function Register() {
+  const { showAlert } = usePopup();
+
   const navigate = useNavigate();
   const [formData, setFormData] = useState({
     username: "",
@@ -30,7 +33,7 @@ function Register() {
       const data = await res.json(); // 💡 ดึงข้อความตอบกลับจาก BE มาอ่าน
 
       if (res.ok) {
-        alert("สมัครสมาชิกสำเร็จ!");
+        showAlert("สมัครสมาชิกสำเร็จ!");
         navigate("/login");
       } else {
         // 💡 ถ้าพัง ให้โชว์ Error จริงๆ จาก Oracle

@@ -1,6 +1,9 @@
 import React, { useState, useEffect } from 'react';
+import { usePopup } from "../context/PopupContext";
 
 const ShippingManager = () => {
+  const { showAlert } = usePopup();
+
   const [sizeTiers, setSizeTiers] = useState([]);
   const [weightTiers, setWeightTiers] = useState([]);
   const [routeFees, setRouteFees] = useState([]);
@@ -36,7 +39,7 @@ const ShippingManager = () => {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(item)
     });
-    alert('บันทึกสำเร็จ');
+    showAlert('บันทึกสำเร็จ');
   };
 
   const handleSaveWeight = async (item) => {
@@ -45,7 +48,7 @@ const ShippingManager = () => {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(item)
     });
-    alert('บันทึกสำเร็จ');
+    showAlert('บันทึกสำเร็จ');
   };
 
   const handleSaveRoute = async (item) => {
@@ -54,7 +57,7 @@ const ShippingManager = () => {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(item)
     });
-    alert('บันทึกสำเร็จ');
+    showAlert('บันทึกสำเร็จ');
   };
 
   return (

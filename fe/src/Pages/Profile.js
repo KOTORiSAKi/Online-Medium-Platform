@@ -1,7 +1,10 @@
 import React, { useState, useEffect, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
+import { usePopup } from "../context/PopupContext";
 
 function Profile() {
+  const { showAlert, showConfirm } = usePopup();
+
   const navigate = useNavigate();
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -146,11 +149,11 @@ function Profile() {
         body: JSON.stringify({ delaySec: shippingDelaySec })
       });
       if (res.ok) {
-        alert('บันทึกเวลาจัดส่งสำเร็จ');
+        showAlert('บันทึกเวลาจัดส่งสำเร็จ');
         setDelayModalOpen(false);
       }
     } catch (e) {
-      alert('Error saving delay');
+      showAlert('Error saving delay');
     }
   };
 
@@ -163,7 +166,7 @@ function Profile() {
   const handleUpdateAccount = async (e) => {
     e.preventDefault();
     if (!editForm.currentPassword) {
-      alert("กรุณาระบุรหัสผ่านปัจจุบัน (Current Password) เพื่อยืนยันตัวตน");
+      showAlert("กรุณาระบุรหัสผ่านปัจจุบัน (Current Password) เพื่อยืนยันตัวตน");
       return;
     }
 
@@ -180,20 +183,20 @@ function Profile() {
       const data = await res.json();
       if (res.ok) {
         if (data.requireRelogin) {
-          alert(
+          showAlert(
             "คุณได้เปลี่ยนแปลง Email หรือ รหัสผ่าน ระบบจะทำการออกจากระบบเพื่อให้ Login ใหม่อีกครั้ง",
           );
           handleLogout();
         } else {
-          alert("อัปเดตข้อมูลบัญชีสำเร็จ!");
+          showAlert("อัปเดตข้อมูลบัญชีสำเร็จ!");
           setEditMode(false);
           fetchAccount(user.AC_ID);
         }
       } else {
-        alert(data.error || "เกิดข้อผิดพลาดในการบันทึกข้อมูล");
+        showAlert(data.error || "เกิดข้อผิดพลาดในการบันทึกข้อมูล");
       }
     } catch (err) {
-      alert("เซิร์ฟเวอร์ไม่ตอบสนอง กรุณาลองใหม่อีกครั้ง");
+      showAlert("เซิร์ฟเวอร์ไม่ตอบสนอง กรุณาลองใหม่อีกครั้ง");
     }
   };
 
@@ -201,7 +204,7 @@ function Profile() {
   const handleSwitchRole = async (e) => {
     e.preventDefault();
     if (!switchPassword) {
-      alert("กรุณากรอกรหัสผ่านเพื่อยืนยันการสลับบทบาท");
+      showAlert("กรุณากรอกรหัสผ่านเพื่อยืนยันการสลับบทบาท");
       return;
     }
 
@@ -217,16 +220,16 @@ function Profile() {
 
       const data = await res.json();
       if (res.ok) {
-        alert(data.message);
+        showAlert(data.message);
         setSwitchPassword("");
         setSwitchRoleOpen(false);
         fetchAccount(user.AC_ID);
         fetchStores();
       } else {
-        alert(data.error || "สลับบทบาทไม่สำเร็จ");
+        showAlert(data.error || "สลับบทบาทไม่สำเร็จ");
       }
     } catch (err) {
-      alert("เชื่อมต่อเซิร์ฟเวอร์ไม่ได้");
+      showAlert("เชื่อมต่อเซิร์ฟเวอร์ไม่ได้");
     }
   };
 
@@ -234,16 +237,16 @@ function Profile() {
   const handleCreateStore = async (e) => {
     e.preventDefault();
     if (!storeForm.stName.trim()) {
-      alert("กรุณากรอกชื่อร้านค้า");
+      showAlert("กรุณากรอกชื่อร้านค้า");
       return;
     }
     if (!storeForm.addressId) {
       if (addresses.length === 0) {
-        alert(
+        showAlert(
           "คุณยังไม่มีที่อยู่ในระบบ กรุณากด '+ เพิ่มที่อยู่ใหม่' ด้านบนก่อนเปิดร้านค้า",
         );
       } else {
-        alert("กรุณาเลือกที่อยู่สำหรับร้านค้า");
+        showAlert("กรุณาเลือกที่อยู่สำหรับร้านค้า");
       }
       return;
     }
@@ -261,15 +264,15 @@ function Profile() {
 
       const data = await res.json();
       if (res.ok) {
-        alert(data.message);
+        showAlert(data.message);
         setStoreForm({ stName: "", addressId: "" });
         fetchStores();
         fetchAccount(user.AC_ID);
       } else {
-        alert(data.error || "สร้างร้านค้าไม่สำเร็จ");
+        showAlert(data.error || "สร้างร้านค้าไม่สำเร็จ");
       }
     } catch (err) {
-      alert("เชื่อมต่อเซิร์ฟเวอร์ไม่ได้");
+      showAlert("เชื่อมต่อเซิร์ฟเวอร์ไม่ได้");
     }
   };
 
@@ -279,7 +282,7 @@ function Profile() {
     const actionText =
       nextStatus === "Y" ? "เปิดร้านให้บริการ" : "ปิดร้านชั่วคราว";
 
-    if (!window.confirm(`ต้องการ "${actionText}" ใช่หรือไม่?`)) return;
+    if (!await showConfirm(`ต้องการ "${actionText}" ใช่หรือไม่?`)) return;
 
     try {
       const res = await fetch(
@@ -292,13 +295,13 @@ function Profile() {
       );
       const data = await res.json();
       if (res.ok) {
-        alert(data.message);
+        showAlert(data.message);
         fetchStores();
       } else {
-        alert(data.error || "เปลี่ยนสถานะไม่สำเร็จ");
+        showAlert(data.error || "เปลี่ยนสถานะไม่สำเร็จ");
       }
     } catch (err) {
-      alert("เชื่อมต่อเซิร์ฟเวอร์ไม่ได้");
+      showAlert("เชื่อมต่อเซิร์ฟเวอร์ไม่ได้");
     }
   };
 
@@ -316,7 +319,7 @@ function Profile() {
   const handleSaveStore = async (e) => {
     e.preventDefault();
     if (!storeEditForm.stName.trim() || !storeEditForm.addressId) {
-      alert("กรุณากรอกชื่อร้านค้าและเลือกสถานที่ตั้งให้ครบถ้วน");
+      showAlert("กรุณากรอกชื่อร้านค้าและเลือกสถานที่ตั้งให้ครบถ้วน");
       return;
     }
 
@@ -336,14 +339,14 @@ function Profile() {
 
       const data = await res.json();
       if (res.ok) {
-        alert(data.message);
+        showAlert(data.message);
         setEditStoreModalOpen(false);
         fetchStores();
       } else {
-        alert(data.error || "แก้ไขข้อมูลร้านไม่สำเร็จ");
+        showAlert(data.error || "แก้ไขข้อมูลร้านไม่สำเร็จ");
       }
     } catch (err) {
-      alert("เชื่อมต่อเซิร์ฟเวอร์ไม่ได้");
+      showAlert("เชื่อมต่อเซิร์ฟเวอร์ไม่ได้");
     }
   };
 
@@ -387,13 +390,13 @@ function Profile() {
       );
       const data = await res.json();
       if (res.ok) {
-        alert(data.message);
+        showAlert(data.message);
         setShippingModalOpen(false);
       } else {
-        alert(data.error || "เกิดข้อผิดพลาด");
+        showAlert(data.error || "เกิดข้อผิดพลาด");
       }
     } catch (err) {
-      alert("เชื่อมต่อเซิร์ฟเวอร์ไม่ได้");
+      showAlert("เชื่อมต่อเซิร์ฟเวอร์ไม่ได้");
     }
   };
 
@@ -455,22 +458,22 @@ function Profile() {
         }),
       });
       if (res.ok) {
-        alert("บันทึกที่อยู่เรียบร้อย");
+        showAlert("บันทึกที่อยู่เรียบร้อย");
         setIsAddressModalOpen(false);
         fetchAddresses(user.AC_ID);
       } else {
         const data = await res.json();
-        alert(data.error || "เกิดข้อผิดพลาดในการบันทึกที่อยู่");
+        showAlert(data.error || "เกิดข้อผิดพลาดในการบันทึกที่อยู่");
       }
     } catch (err) {
-      alert("เชื่อมต่อเซิร์ฟเวอร์ไม่ได้");
+      showAlert("เชื่อมต่อเซิร์ฟเวอร์ไม่ได้");
     }
   };
 
   // 5. ลบบัญชีผู้ใช้
   const handleDeleteAccount = async () => {
     if (
-      !window.confirm(
+      !await showConfirm(
         "🚨 คำเตือน: คุณต้องการ 'ลบบัญชีนี้ถาวร' จริงๆ หรือไม่? ข้อมูลทั้งหมดจะถูกลบและไม่สามารถกู้คืนได้!",
       )
     ) {
@@ -484,13 +487,13 @@ function Profile() {
       );
       const data = await res.json();
       if (res.ok) {
-        alert(data.message);
+        showAlert(data.message);
         handleLogout();
       } else {
-        alert(data.error || "ไม่สามารถลบบัญชีได้");
+        showAlert(data.error || "ไม่สามารถลบบัญชีได้");
       }
     } catch (err) {
-      alert("เซิร์ฟเวอร์ไม่ตอบสนอง");
+      showAlert("เซิร์ฟเวอร์ไม่ตอบสนอง");
     }
   };
 

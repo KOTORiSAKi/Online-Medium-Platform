@@ -1,7 +1,10 @@
 import React, { useState } from "react";
-import { useNavigate, Link } from "react-router-dom"; // 💡 เพิ่ม Link ตรงนี้
+import { useNavigate, Link } from "react-router-dom";
+import { usePopup } from "../context/PopupContext"; // 💡 เพิ่ม Link ตรงนี้
 
 function Login() {
+  const { showAlert } = usePopup();
+
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [errorMsg, setErrorMsg] = useState("");
@@ -21,7 +24,7 @@ function Login() {
       if (res.ok) {
         // เก็บข้อมูล User ลงเครื่อง (เสมือน Login Session)
         localStorage.setItem("user", JSON.stringify(data));
-        alert(`ยินดีต้อนรับคุณ ${data.FNAME}!`);
+        showAlert(`ยินดีต้อนรับคุณ ${data.FNAME}!`);
         navigate("/profile");
       } else {
         setErrorMsg(data.error);

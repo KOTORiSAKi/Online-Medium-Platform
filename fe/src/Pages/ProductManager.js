@@ -1,7 +1,10 @@
 import React, { useState, useEffect, useCallback } from "react";
 import { useParams, useNavigate, Link } from "react-router-dom";
+import { usePopup } from "../context/PopupContext";
 
 function ProductManager() {
+  const { showAlert, showConfirm } = usePopup();
+
   const { stId } = useParams();
   const navigate = useNavigate();
 
@@ -99,7 +102,7 @@ function ProductManager() {
   const handleSubmitStore = async (e) => {
     e.preventDefault();
     if (!storeForm.stName.trim() || !storeForm.addressId) {
-      alert("กรุณากรอกชื่อร้านและเลือกสถานที่ตั้งให้ครบถ้วน");
+      showAlert("กรุณากรอกชื่อร้านและเลือกสถานที่ตั้งให้ครบถ้วน");
       return;
     }
     try {
@@ -114,7 +117,7 @@ function ProductManager() {
       });
       const data = await res.json();
       if (res.ok) {
-        alert(data.message);
+        showAlert(data.message);
         setStore((prev) => ({
           ...prev,
           ST_NAME: storeForm.stName,
@@ -122,10 +125,10 @@ function ProductManager() {
         }));
         setIsStoreModalOpen(false);
       } else {
-        alert(data.error || "แก้ไขข้อมูลร้านไม่สำเร็จ");
+        showAlert(data.error || "แก้ไขข้อมูลร้านไม่สำเร็จ");
       }
     } catch (err) {
-      alert("เชื่อมต่อเซิร์ฟเวอร์ไม่ได้");
+      showAlert("เชื่อมต่อเซิร์ฟเวอร์ไม่ได้");
     }
   };
 
@@ -189,20 +192,20 @@ function ProductManager() {
 
       const data = await res.json();
       if (res.ok) {
-        alert(data.message);
+        showAlert(data.message);
         setIsModalOpen(false);
         fetchStoreAndProducts(user);
       } else {
-        alert(data.error || "เกิดข้อผิดพลาดในการบันทึกข้อมูลสินค้า");
+        showAlert(data.error || "เกิดข้อผิดพลาดในการบันทึกข้อมูลสินค้า");
       }
     } catch (err) {
-      alert("เซิร์ฟเวอร์ไม่ตอบสนอง");
+      showAlert("เซิร์ฟเวอร์ไม่ตอบสนอง");
     }
   };
 
   // ลบสินค้า
   const handleDeleteProduct = async (productId, productName) => {
-    if (!window.confirm(`คุณแน่ใจว่าต้องการลบสินค้า "${productName}" ใช่หรือไม่?`)) {
+    if (!await showConfirm(`คุณแน่ใจว่าต้องการลบสินค้า "${productName}" ใช่หรือไม่?`)) {
       return;
     }
 
@@ -214,13 +217,13 @@ function ProductManager() {
       });
       const data = await res.json();
       if (res.ok) {
-        alert(data.message);
+        showAlert(data.message);
         fetchStoreAndProducts(user);
       } else {
-        alert(data.error || "ลบสินค้าไม่สำเร็จ");
+        showAlert(data.error || "ลบสินค้าไม่สำเร็จ");
       }
     } catch (err) {
-      alert("เชื่อมต่อเซิร์ฟเวอร์ไม่ได้");
+      showAlert("เชื่อมต่อเซิร์ฟเวอร์ไม่ได้");
     }
   };
 

@@ -1,7 +1,10 @@
 import React, { useState, useEffect, useCallback } from "react";
 import { useNavigate, Link } from "react-router-dom";
+import { usePopup } from "../context/PopupContext";
 
 function Market() {
+  const { showAlert, showConfirm } = usePopup();
+
   const navigate = useNavigate();
   const [user, setUser] = useState(null);
   const [groupedCart, setGroupedCart] = useState({});
@@ -156,7 +159,7 @@ function Market() {
 
     // ถ้ายอดกลายเป็น 0 ให้ขึ้นแจ้งเตือนก่อนลบ
     if (newQty <= 0) {
-      if (!window.confirm("ต้องการลบสินค้านี้ออกจากตะกร้าใช่หรือไม่?")) return;
+      if (!await showConfirm("ต้องการลบสินค้านี้ออกจากตะกร้าใช่หรือไม่?")) return;
     }
 
     try {
@@ -168,7 +171,7 @@ function Market() {
       // อัปเดตเสร็จ สั่งให้ดึงข้อมูลตะกร้าใหม่ทันที
       fetchCartData(user.AC_ID);
     } catch (err) {
-      alert("เกิดข้อผิดพลาดในการอัปเดตตะกร้า");
+      showAlert("เกิดข้อผิดพลาดในการอัปเดตตะกร้า");
     }
   };
 
@@ -247,11 +250,11 @@ function Market() {
 
   const handleCheckout = async () => {
     if (selectedDetailIds.length === 0) {
-      alert("กรุณาเลือกสินค้าอย่างน้อย 1 ชิ้นที่ต้องการสั่งซื้อ");
+      showAlert("กรุณาเลือกสินค้าอย่างน้อย 1 ชิ้นที่ต้องการสั่งซื้อ");
       return;
     }
     if (!destAddressId) {
-      alert("กรุณาเลือกที่อยู่จัดส่ง");
+      showAlert("กรุณาเลือกที่อยู่จัดส่ง");
       return;
     }
 
@@ -260,7 +263,7 @@ function Market() {
       (item) => item.IS_OPEN === "N",
     );
     if (hasSelectedClosed) {
-      alert(
+      showAlert(
         "⚠️ ไม่สามารถสั่งซื้อได้: มีสินค้าจากร้านค้าที่ปิดให้บริการอยู่ในรายการที่เลือก",
       );
       return;
@@ -272,7 +275,7 @@ function Market() {
     );
     if (outOfStockSelected.length > 0) {
       const names = outOfStockSelected.map((it) => it.PRODUCT_NAME).join(", ");
-      alert(
+      showAlert(
         `⚠️ ไม่สามารถสั่งซื้อได้: มีสินค้าหมดสต็อกหรือจำนวนเกินสต็อกในรายการที่เลือก (${names}) กรุณาตรวจสอบและปรับลดจำนวนก่อนสั่งซื้อ`,
       );
       return;
@@ -292,7 +295,7 @@ function Market() {
       });
       const data = await res.json();
       if (res.ok) {
-        alert(
+        showAlert(
           data.message || "สั่งซื้อสำเร็จ! สถานะถูกเปลี่ยนเป็น 'รอจัดส่ง' แล้ว",
         );
         setSelectedDetailIds([]);
@@ -300,10 +303,10 @@ function Market() {
         fetchActiveOrders(user.AC_ID);
         // navigate("/profile");
       } else {
-        alert(data.error || "เกิดข้อผิดพลาดในการสั่งซื้อ");
+        showAlert(data.error || "เกิดข้อผิดพลาดในการสั่งซื้อ");
       }
     } catch (err) {
-      alert("เชื่อมต่อเซิร์ฟเวอร์ไม่ได้");
+      showAlert("เชื่อมต่อเซิร์ฟเวอร์ไม่ได้");
     }
   };
 
@@ -325,14 +328,14 @@ function Market() {
         body: JSON.stringify({ rating: reviewRating }),
       });
       if (res.ok) {
-        alert("ขอบคุณสำหรับการรีวิว!");
+        showAlert("ขอบคุณสำหรับการรีวิว!");
         setReviewModalOpen(false);
         fetchActiveOrders(user.AC_ID);
       } else {
-        alert("เกิดข้อผิดพลาด");
+        showAlert("เกิดข้อผิดพลาด");
       }
     } catch (err) {
-      alert("Error: " + err.message);
+      showAlert("Error: " + err.message);
     }
   };
 
