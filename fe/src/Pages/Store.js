@@ -32,7 +32,6 @@ function Store() {
   const fetchStoreData = useCallback(async () => {
     setLoading(true);
     try {
-      // 1. ดึงรายละเอียดร้านค้า
       const storeRes = await fetch(`http://localhost:5000/api/stores/${stId}`);
       if (!storeRes.ok) {
         setStore(null);
@@ -42,8 +41,9 @@ function Store() {
       const storeData = await storeRes.json();
       setStore(storeData);
 
-      // 2. ดึงรายการสินค้าของร้าน
-      const prodRes = await fetch(`http://localhost:5000/api/stores/${stId}/products`);
+      const prodRes = await fetch(
+        `http://localhost:5000/api/stores/${stId}/products`
+      );
       if (prodRes.ok) {
         const prodData = await prodRes.json();
         setProducts(Array.isArray(prodData) ? prodData : []);
@@ -63,16 +63,6 @@ function Store() {
   useEffect(() => {
     setCurrentPage(1);
   }, [searchQuery, sortBy, itemsPerPage]);
-
-  // ส่ง Event เพื่อให้ Liquid Glass Navbar อัปเดตภาพพื้นหลัง
-  useEffect(() => {
-    if (!loading && store) {
-      const timer = setTimeout(() => {
-        window.dispatchEvent(new CustomEvent("update-glass"));
-      }, 100);
-      return () => clearTimeout(timer);
-    }
-  }, [loading, store, currentPage, itemsPerPage]);
 
   // กรองสินค้าตามคำค้นหา
   const filtered = products.filter((item) => {
@@ -107,29 +97,108 @@ function Store() {
   const paginatedProducts = displayedProducts.slice(startIndex, endIndex);
 
   const handlePageChange = (newPage) => {
-    if (newPage < 1 || newPage > totalPages || newPage === safeCurrentPage) return;
+    if (newPage < 1 || newPage > totalPages || newPage === safeCurrentPage)
+      return;
     setCurrentPage(newPage);
     window.scrollTo({ top: 400, behavior: "smooth" });
   };
 
   if (loading) {
     return (
-      <div style={{ padding: "4rem 1rem", textAlign: "center", color: "#64748b" }}>
-        กำลังโหลดข้อมูลร้านค้า... ⏳
+      <div
+        className="page-enter"
+        style={{ padding: "2rem", maxWidth: "1100px", margin: "0 auto" }}
+      >
+        <div
+          style={{
+            backgroundColor: "#ffffff",
+            borderRadius: "16px",
+            border: "1px solid #e2e8f0",
+            padding: "2rem",
+            marginBottom: "2rem",
+          }}
+        >
+          <div style={{ display: "flex", gap: "1.25rem", alignItems: "center" }}>
+            <div
+              className="skeleton"
+              style={{ width: "72px", height: "72px", borderRadius: "16px" }}
+            />
+            <div style={{ flex: 1 }}>
+              <div
+                className="skeleton"
+                style={{ width: "240px", height: "28px", marginBottom: "10px" }}
+              />
+              <div
+                className="skeleton"
+                style={{ width: "320px", height: "18px" }}
+              />
+            </div>
+          </div>
+        </div>
+        <div
+          style={{
+            display: "grid",
+            gridTemplateColumns: "repeat(auto-fill, minmax(240px, 1fr))",
+            gap: "1.5rem",
+          }}
+        >
+          {Array.from({ length: 4 }).map((_, idx) => (
+            <div
+              key={idx}
+              style={{
+                backgroundColor: "#ffffff",
+                borderRadius: "14px",
+                border: "1px solid #e2e8f0",
+                overflow: "hidden",
+                paddingBottom: "1rem",
+              }}
+            >
+              <div
+                className="skeleton"
+                style={{ width: "100%", height: "160px", borderRadius: 0 }}
+              />
+              <div style={{ padding: "1rem" }}>
+                <div
+                  className="skeleton"
+                  style={{ width: "60%", height: "16px", marginBottom: "10px" }}
+                />
+                <div
+                  className="skeleton"
+                  style={{ width: "80%", height: "20px", marginBottom: "12px" }}
+                />
+                <div
+                  className="skeleton"
+                  style={{ width: "100%", height: "36px", borderRadius: "8px" }}
+                />
+              </div>
+            </div>
+          ))}
+        </div>
       </div>
     );
   }
 
   if (!store) {
     return (
-      <div style={{ padding: "4rem 1.5rem", textAlign: "center", maxWidth: "600px", margin: "0 auto" }}>
+      <div
+        className="page-enter"
+        style={{
+          padding: "4rem 1.5rem",
+          textAlign: "center",
+          maxWidth: "600px",
+          margin: "0 auto",
+        }}
+      >
         <div style={{ fontSize: "3.5rem", marginBottom: "1rem" }}>🏪❌</div>
-        <h2 style={{ color: "#0f172a", marginBottom: "0.5rem" }}>ไม่พบร้านค้านี้</h2>
+        <h2 style={{ color: "#0f172a", marginBottom: "0.5rem" }}>
+          ไม่พบร้านค้านี้
+        </h2>
         <p style={{ color: "#64748b", marginBottom: "1.5rem" }}>
           ร้านค้าอาจถูกลบหรือไม่มีอยู่ในระบบ
         </p>
         <button
           onClick={() => navigate("/")}
+          className="btn-interactive"
           style={{
             padding: "0.6rem 1.4rem",
             backgroundColor: "#2563eb",
@@ -159,10 +228,14 @@ function Store() {
     .join(" ");
 
   return (
-    <div style={{ padding: "2rem", maxWidth: "1100px", margin: "0 auto" }}>
+    <div
+      className="page-enter"
+      style={{ padding: "2rem", maxWidth: "1100px", margin: "0 auto" }}
+    >
       {/* ลิงก์ย้อนกลับ */}
       <button
         onClick={() => navigate(-1)}
+        className="btn-interactive"
         style={{
           background: "none",
           border: "none",
@@ -174,14 +247,13 @@ function Store() {
           alignItems: "center",
           gap: "0.35rem",
           padding: 0,
+          fontWeight: "600",
         }}
       >
         ← ย้อนกลับ
       </button>
 
-      {/* ========================================================= */}
       {/* ป้ายข้อมูลร้านค้า (Store Banner & Profile Card) */}
-      {/* ========================================================= */}
       <div
         style={{
           backgroundColor: "#ffffff",
@@ -194,7 +266,6 @@ function Store() {
           overflow: "hidden",
         }}
       >
-        {/* แถบสีตกแต่งด้านบน */}
         <div
           style={{
             position: "absolute",
@@ -218,7 +289,13 @@ function Store() {
           }}
         >
           {/* ข้อมูลชื่อและที่ตั้งร้าน */}
-          <div style={{ display: "flex", gap: "1.25rem", alignItems: "flex-start" }}>
+          <div
+            style={{
+              display: "flex",
+              gap: "1.25rem",
+              alignItems: "flex-start",
+            }}
+          >
             <div
               style={{
                 width: "72px",
@@ -229,7 +306,9 @@ function Store() {
                 justifyContent: "center",
                 alignItems: "center",
                 fontSize: "2.4rem",
-                border: isOpen ? "1.5px solid #bfdbfe" : "1.5px solid #fca5a5",
+                border: isOpen
+                  ? "1.5px solid #bfdbfe"
+                  : "1.5px solid #fca5a5",
                 flexShrink: 0,
               }}
             >
@@ -237,8 +316,17 @@ function Store() {
             </div>
 
             <div>
-              <div style={{ display: "flex", alignItems: "center", gap: "0.6rem", flexWrap: "wrap" }}>
-                <h1 style={{ margin: 0, fontSize: "1.65rem", color: "#0f172a" }}>
+              <div
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "0.6rem",
+                  flexWrap: "wrap",
+                }}
+              >
+                <h1
+                  style={{ margin: 0, fontSize: "1.65rem", color: "#0f172a" }}
+                >
                   {store.ST_NAME}
                 </h1>
                 <span
@@ -249,7 +337,9 @@ function Store() {
                     borderRadius: "9999px",
                     fontSize: "0.8rem",
                     fontWeight: "bold",
-                    border: isOpen ? "1px solid #bbf7d0" : "1px solid #fecaca",
+                    border: isOpen
+                      ? "1px solid #bbf7d0"
+                      : "1px solid #fecaca",
                   }}
                 >
                   {isOpen ? "🟢 เปิดให้บริการ" : "🔴 ปิดให้บริการชั่วคราว"}
@@ -271,7 +361,6 @@ function Store() {
                 )}
               </div>
 
-              {/* ที่อยู่ร้านค้า */}
               <p
                 style={{
                   margin: "0.5rem 0 0 0",
@@ -311,12 +400,27 @@ function Store() {
                 minWidth: "110px",
               }}
             >
-              <div style={{ fontSize: "0.78rem", color: "#64748b", fontWeight: "bold" }}>
+              <div
+                style={{
+                  fontSize: "0.78rem",
+                  color: "#64748b",
+                  fontWeight: "bold",
+                }}
+              >
                 ⭐ เรตติ้งร้านค้า
               </div>
-              <div style={{ fontSize: "1.45rem", fontWeight: "bold", color: "#f59e0b", marginTop: "0.2rem" }}>
+              <div
+                style={{
+                  fontSize: "1.45rem",
+                  fontWeight: "bold",
+                  color: "#f59e0b",
+                  marginTop: "0.2rem",
+                }}
+              >
                 {Number(store.RATING_POINT || 0).toFixed(1)}{" "}
-                <span style={{ fontSize: "0.85rem", color: "#94a3b8" }}>/ 5</span>
+                <span style={{ fontSize: "0.85rem", color: "#94a3b8" }}>
+                  / 5
+                </span>
               </div>
             </div>
 
@@ -330,12 +434,27 @@ function Store() {
                 minWidth: "110px",
               }}
             >
-              <div style={{ fontSize: "0.78rem", color: "#64748b", fontWeight: "bold" }}>
+              <div
+                style={{
+                  fontSize: "0.78rem",
+                  color: "#64748b",
+                  fontWeight: "bold",
+                }}
+              >
                 📦 ยอดขายสะสม
               </div>
-              <div style={{ fontSize: "1.45rem", fontWeight: "bold", color: "#059669", marginTop: "0.2rem" }}>
+              <div
+                style={{
+                  fontSize: "1.45rem",
+                  fontWeight: "bold",
+                  color: "#059669",
+                  marginTop: "0.2rem",
+                }}
+              >
                 {Number(store.SELLING_RATE || 0).toLocaleString()}{" "}
-                <span style={{ fontSize: "0.85rem", color: "#94a3b8" }}>ชิ้น</span>
+                <span style={{ fontSize: "0.85rem", color: "#94a3b8" }}>
+                  ชิ้น
+                </span>
               </div>
             </div>
 
@@ -349,12 +468,27 @@ function Store() {
                 minWidth: "110px",
               }}
             >
-              <div style={{ fontSize: "0.78rem", color: "#64748b", fontWeight: "bold" }}>
+              <div
+                style={{
+                  fontSize: "0.78rem",
+                  color: "#64748b",
+                  fontWeight: "bold",
+                }}
+              >
                 🛍️ สินค้าทั้งหมด
               </div>
-              <div style={{ fontSize: "1.45rem", fontWeight: "bold", color: "#2563eb", marginTop: "0.2rem" }}>
+              <div
+                style={{
+                  fontSize: "1.45rem",
+                  fontWeight: "bold",
+                  color: "#2563eb",
+                  marginTop: "0.2rem",
+                }}
+              >
                 {products.length}{" "}
-                <span style={{ fontSize: "0.85rem", color: "#94a3b8" }}>รายการ</span>
+                <span style={{ fontSize: "0.85rem", color: "#94a3b8" }}>
+                  รายการ
+                </span>
               </div>
             </div>
           </div>
@@ -373,8 +507,21 @@ function Store() {
             gap: "1rem",
           }}
         >
-          <div style={{ display: "flex", alignItems: "center", gap: "0.75rem", flexWrap: "wrap" }}>
-            <span style={{ fontWeight: "bold", fontSize: "0.9rem", color: "#334155" }}>
+          <div
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: "0.75rem",
+              flexWrap: "wrap",
+            }}
+          >
+            <span
+              style={{
+                fontWeight: "bold",
+                fontSize: "0.9rem",
+                color: "#334155",
+              }}
+            >
               🚚 ช่องทางการจัดส่งที่รองรับ:
             </span>
             {store.services && store.services.length > 0 ? (
@@ -393,13 +540,27 @@ function Store() {
                     color: "#1e293b",
                   }}
                 >
-                  <strong style={{ color: "#2563eb" }}>{svc.DVSERVICE_NAME}</strong>
+                  <strong style={{ color: "#2563eb" }}>
+                    {svc.DVSERVICE_NAME}
+                  </strong>
                   <span style={{ color: "#94a3b8" }}>|</span>
-                  <span style={{ fontSize: "0.75rem", color: svc.IS_PICKUP_ENABLED === "Y" ? "#15803d" : "#94a3b8" }}>
+                  <span
+                    style={{
+                      fontSize: "0.75rem",
+                      color:
+                        svc.IS_PICKUP_ENABLED === "Y" ? "#15803d" : "#94a3b8",
+                    }}
+                  >
                     Pickup {svc.IS_PICKUP_ENABLED === "Y" ? "✓" : "✗"}
                   </span>
                   <span style={{ color: "#cbd5e1" }}>•</span>
-                  <span style={{ fontSize: "0.75rem", color: svc.IS_DROPOFF_ENABLED === "Y" ? "#15803d" : "#94a3b8" }}>
+                  <span
+                    style={{
+                      fontSize: "0.75rem",
+                      color:
+                        svc.IS_DROPOFF_ENABLED === "Y" ? "#15803d" : "#94a3b8",
+                    }}
+                  >
                     Dropoff {svc.IS_DROPOFF_ENABLED === "Y" ? "✓" : "✗"}
                   </span>
                 </div>
@@ -411,11 +572,11 @@ function Store() {
             )}
           </div>
 
-          {/* ปุ่มทางลัดสำหรับเจ้าของร้าน / Admin */}
           {isOwner && (
             <div style={{ display: "flex", gap: "0.5rem" }}>
               <Link
                 to={`/product-manager/${store.ST_ID}`}
+                className="btn-interactive"
                 style={{
                   padding: "0.45rem 0.9rem",
                   backgroundColor: "#2563eb",
@@ -433,6 +594,7 @@ function Store() {
               </Link>
               <Link
                 to="/profile"
+                className="btn-interactive"
                 style={{
                   padding: "0.45rem 0.9rem",
                   backgroundColor: "#f1f5f9",
@@ -451,9 +613,7 @@ function Store() {
         </div>
       </div>
 
-      {/* ========================================================= */}
       {/* ส่วนแสดงสินค้าทั้งหมดของร้าน (Products Section) */}
-      {/* ========================================================= */}
       <div
         style={{
           display: "flex",
@@ -473,25 +633,35 @@ function Store() {
           <h2 style={{ margin: 0, fontSize: "1.25rem", color: "#0f172a" }}>
             🛍️ สินค้าทั้งหมดของร้าน ({products.length} ชิ้น)
           </h2>
-          <p style={{ margin: "0.25rem 0 0 0", color: "#64748b", fontSize: "0.82rem" }}>
+          <p
+            style={{
+              margin: "0.25rem 0 0 0",
+              color: "#64748b",
+              fontSize: "0.82rem",
+            }}
+          >
             ค้นหาและเลือกชมสินค้าคุณภาพจากร้าน {store.ST_NAME}
           </p>
         </div>
 
-        {/* ค้นหาและจัดเรียงสินค้าภายในร้าน */}
-        <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", flexWrap: "wrap" }}>
+        <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            gap: "0.5rem",
+            flexWrap: "wrap",
+          }}
+        >
           <input
             type="text"
             placeholder="🔍 ค้นหาสินค้าในร้าน..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
+            className="form-input"
             style={{
               padding: "0.45rem 0.85rem",
-              borderRadius: "8px",
-              border: "1px solid #cbd5e1",
               fontSize: "0.85rem",
-              outline: "none",
-              minWidth: "180px",
+              width: "210px",
             }}
           />
 
@@ -500,8 +670,8 @@ function Store() {
             onChange={(e) => setSortBy(e.target.value)}
             style={{
               padding: "0.45rem 0.8rem",
-              borderRadius: "8px",
-              border: "1px solid #e2e8f0",
+              borderRadius: "10px",
+              border: "1px solid #cbd5e1",
               backgroundColor: "#ffffff",
               color: "#334155",
               fontSize: "0.85rem",
@@ -532,9 +702,17 @@ function Store() {
         >
           <div style={{ fontSize: "3rem", marginBottom: "0.75rem" }}>📦</div>
           <h3 style={{ margin: "0 0 0.5rem 0", color: "#1e293b" }}>
-            {searchQuery ? "ไม่พบสินค้าที่ตรงกับคำค้นหา" : "ร้านค้านี้ยังไม่มีสินค้าวางจำหน่าย"}
+            {searchQuery
+              ? "ไม่พบสินค้าที่ตรงกับคำค้นหา"
+              : "ร้านค้านี้ยังไม่มีสินค้าวางจำหน่าย"}
           </h3>
-          <p style={{ color: "#64748b", fontSize: "0.9rem", margin: "0 0 1rem 0" }}>
+          <p
+            style={{
+              color: "#64748b",
+              fontSize: "0.9rem",
+              margin: "0 0 1rem 0",
+            }}
+          >
             {searchQuery
               ? "ลองพิมพ์ค้นหาด้วยชื่ออื่น"
               : isOwner
@@ -544,6 +722,7 @@ function Store() {
           {isOwner && (
             <Link
               to={`/product-manager/${store.ST_ID}`}
+              className="btn-interactive"
               style={{
                 display: "inline-block",
                 padding: "0.55rem 1.25rem",
@@ -567,19 +746,21 @@ function Store() {
               gap: "1.5rem",
             }}
           >
-            {paginatedProducts.map((item) => {
+            {paginatedProducts.map((item, idx) => {
               const isClosed = !isOpen || item.IS_OPEN === "N";
               const isOutOfStock = (item.STOCK ?? 0) <= 0;
               return (
                 <div
                   key={item.PRODUCT_ID}
+                  className="product-card stagger-item"
                   style={{
+                    animationDelay: `${(idx % 12) * 35}ms`,
                     border: isClosed
                       ? "2px solid #ef4444"
                       : isOutOfStock
                         ? "1.5px solid #fca5a5"
                         : "1px solid #e2e8f0",
-                    borderRadius: "12px",
+                    borderRadius: "14px",
                     overflow: "hidden",
                     backgroundColor: isClosed
                       ? "#fef2f2"
@@ -587,15 +768,12 @@ function Store() {
                         ? "#fffdfd"
                         : "#fff",
                     position: "relative",
-                    transition: "all 0.2s ease",
                     display: "flex",
                     flexDirection: "column",
                     justifyContent: "space-between",
-                    boxShadow: "0 2px 4px rgba(0,0,0,0.03)",
                   }}
                 >
                   <div>
-                    {/* ป้ายเตือนร้านปิด */}
                     {isClosed && (
                       <div
                         style={{
@@ -616,7 +794,6 @@ function Store() {
                       </div>
                     )}
 
-                    {/* ป้ายเตือนสินค้าหมด */}
                     {isOutOfStock && (
                       <div
                         style={{
@@ -637,23 +814,29 @@ function Store() {
                       </div>
                     )}
 
-                    {/* รูปสินค้า */}
-                    <img
-                      src={
-                        item.IMAGE_URL ||
-                        `https://placehold.co/300x200?text=${encodeURIComponent(
-                          item.PRODUCT_NAME
-                        )}`
-                      }
-                      alt={item.PRODUCT_NAME}
-                      style={{
-                        width: "100%",
-                        height: "160px",
-                        objectFit: "cover",
-                        filter: isClosed || isOutOfStock ? "grayscale(70%)" : "none",
-                        opacity: isOutOfStock ? 0.8 : 1,
-                      }}
-                    />
+                    <div className="product-card-img-wrap">
+                      <img
+                        className="product-card-img"
+                        src={
+                          item.IMAGE_URL ||
+                          `https://placehold.co/300x200?text=${encodeURIComponent(
+                            item.PRODUCT_NAME
+                          )}`
+                        }
+                        alt={item.PRODUCT_NAME}
+                        style={{
+                          width: "100%",
+                          height: "165px",
+                          objectFit: "cover",
+                          display: "block",
+                          filter:
+                            isClosed || isOutOfStock
+                              ? "grayscale(70%)"
+                              : "none",
+                          opacity: isOutOfStock ? 0.8 : 1,
+                        }}
+                      />
+                    </div>
 
                     <div
                       style={{
@@ -673,17 +856,34 @@ function Store() {
                         <span>
                           {item.TYPE} •{" "}
                           {isOutOfStock ? (
-                            <strong style={{ color: "#dc2626" }}>สินค้าหมด (0 ชิ้น)</strong>
+                            <strong style={{ color: "#dc2626" }}>
+                              สินค้าหมด (0 ชิ้น)
+                            </strong>
                           ) : (
                             `เหลือ ${item.STOCK} ชิ้น`
                           )}
                         </span>
-                        <span style={{ fontSize: "0.75rem", color: "#f59e0b", fontWeight: "bold" }}>
+                        <span
+                          style={{
+                            fontSize: "0.75rem",
+                            color: "#d97706",
+                            fontWeight: "bold",
+                            backgroundColor: "#fef3c7",
+                            padding: "2px 6px",
+                            borderRadius: "6px",
+                          }}
+                        >
                           ⭐ {item.RATING ?? 0}
                         </span>
                       </div>
 
-                      <h3 style={{ fontSize: "1rem", margin: "0.5rem 0 0.25rem 0", color: "#0f172a" }}>
+                      <h3
+                        style={{
+                          fontSize: "1rem",
+                          margin: "0.5rem 0 0.25rem 0",
+                          color: "#0f172a",
+                        }}
+                      >
                         {item.PRODUCT_NAME}
                       </h3>
 
@@ -697,9 +897,13 @@ function Store() {
                       >
                         <span
                           style={{
-                            fontSize: "1.15rem",
-                            fontWeight: "bold",
-                            color: isClosed ? "#991b1b" : isOutOfStock ? "#64748b" : "#059669",
+                            fontSize: "1.18rem",
+                            fontWeight: "800",
+                            color: isClosed
+                              ? "#991b1b"
+                              : isOutOfStock
+                                ? "#64748b"
+                                : "#059669",
                           }}
                         >
                           ฿
@@ -714,17 +918,18 @@ function Store() {
                   <div style={{ padding: "0 1rem 1rem 1rem" }}>
                     <Link
                       to={`/product/${item.PRODUCT_ID}`}
+                      className="btn-interactive"
                       style={{
                         display: "block",
                         textAlign: "center",
-                        padding: "0.5rem",
+                        padding: "0.55rem",
                         backgroundColor: isClosed
                           ? "#dc2626"
                           : isOutOfStock
                             ? "#64748b"
                             : "#2563eb",
                         color: "white",
-                        borderRadius: "6px",
+                        borderRadius: "8px",
                         textDecoration: "none",
                         fontWeight: "bold",
                         fontSize: "0.9rem",
@@ -764,7 +969,9 @@ function Store() {
                 <strong style={{ color: "#0f172a" }}>
                   {startIndex + 1} - {endIndex}
                 </strong>{" "}
-                จากทั้งหมด <strong style={{ color: "#0f172a" }}>{totalItems}</strong> รายการ
+                จากทั้งหมด{" "}
+                <strong style={{ color: "#0f172a" }}>{totalItems}</strong>{" "}
+                รายการ
                 <span style={{ marginLeft: "0.5rem", color: "#94a3b8" }}>
                   (หน้า {safeCurrentPage} จาก {totalPages})
                 </span>
@@ -781,11 +988,13 @@ function Store() {
                 <button
                   onClick={() => handlePageChange(safeCurrentPage - 1)}
                   disabled={safeCurrentPage <= 1}
+                  className="btn-interactive"
                   style={{
                     padding: "0.45rem 0.85rem",
                     borderRadius: "8px",
                     border: "1px solid #e2e8f0",
-                    backgroundColor: safeCurrentPage <= 1 ? "#f8fafc" : "#ffffff",
+                    backgroundColor:
+                      safeCurrentPage <= 1 ? "#f8fafc" : "#ffffff",
                     color: safeCurrentPage <= 1 ? "#cbd5e1" : "#475569",
                     cursor: safeCurrentPage <= 1 ? "not-allowed" : "pointer",
                     fontWeight: "600",
@@ -793,62 +1002,78 @@ function Store() {
                     display: "flex",
                     alignItems: "center",
                     gap: "0.25rem",
-                    transition: "all 0.15s ease",
                   }}
                 >
                   ‹ ย้อนกลับ
                 </button>
 
-                {Array.from({ length: totalPages }, (_, idx) => idx + 1).map((pageNum) => {
-                  const isActive = pageNum === safeCurrentPage;
-                  return (
-                    <button
-                      key={pageNum}
-                      onClick={() => handlePageChange(pageNum)}
-                      style={{
-                        minWidth: "36px",
-                        height: "36px",
-                        padding: "0 0.5rem",
-                        borderRadius: "8px",
-                        border: isActive ? "1.5px solid #2563eb" : "1px solid #e2e8f0",
-                        backgroundColor: isActive ? "#2563eb" : "#ffffff",
-                        color: isActive ? "#ffffff" : "#334155",
-                        fontWeight: isActive ? "bold" : "500",
-                        fontSize: "0.875rem",
-                        cursor: "pointer",
-                        boxShadow: isActive ? "0 2px 4px rgba(37,99,235,0.25)" : "none",
-                        transition: "all 0.15s ease",
-                      }}
-                    >
-                      {pageNum}
-                    </button>
-                  );
-                })}
+                {Array.from({ length: totalPages }, (_, idx) => idx + 1).map(
+                  (pageNum) => {
+                    const isActive = pageNum === safeCurrentPage;
+                    return (
+                      <button
+                        key={pageNum}
+                        onClick={() => handlePageChange(pageNum)}
+                        className="btn-interactive"
+                        style={{
+                          minWidth: "36px",
+                          height: "36px",
+                          padding: "0 0.5rem",
+                          borderRadius: "8px",
+                          border: isActive
+                            ? "1.5px solid #2563eb"
+                            : "1px solid #e2e8f0",
+                          backgroundColor: isActive ? "#2563eb" : "#ffffff",
+                          color: isActive ? "#ffffff" : "#334155",
+                          fontWeight: isActive ? "bold" : "500",
+                          fontSize: "0.875rem",
+                          cursor: "pointer",
+                          boxShadow: isActive
+                            ? "0 2px 4px rgba(37,99,235,0.25)"
+                            : "none",
+                        }}
+                      >
+                        {pageNum}
+                      </button>
+                    );
+                  }
+                )}
 
                 <button
                   onClick={() => handlePageChange(safeCurrentPage + 1)}
                   disabled={safeCurrentPage >= totalPages}
+                  className="btn-interactive"
                   style={{
                     padding: "0.45rem 0.85rem",
                     borderRadius: "8px",
                     border: "1px solid #e2e8f0",
-                    backgroundColor: safeCurrentPage >= totalPages ? "#f8fafc" : "#ffffff",
-                    color: safeCurrentPage >= totalPages ? "#cbd5e1" : "#475569",
-                    cursor: safeCurrentPage >= totalPages ? "not-allowed" : "pointer",
+                    backgroundColor:
+                      safeCurrentPage >= totalPages ? "#f8fafc" : "#ffffff",
+                    color:
+                      safeCurrentPage >= totalPages ? "#cbd5e1" : "#475569",
+                    cursor:
+                      safeCurrentPage >= totalPages ? "not-allowed" : "pointer",
                     fontWeight: "600",
                     fontSize: "0.85rem",
                     display: "flex",
                     alignItems: "center",
                     gap: "0.25rem",
-                    transition: "all 0.15s ease",
                   }}
                 >
                   ถัดไป ›
                 </button>
               </div>
 
-              <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
-                <span style={{ color: "#64748b", fontSize: "0.85rem" }}>แสดงต่อหน้า:</span>
+              <div
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "0.5rem",
+                }}
+              >
+                <span style={{ color: "#64748b", fontSize: "0.85rem" }}>
+                  แสดงต่อหน้า:
+                </span>
                 <select
                   value={itemsPerPage}
                   onChange={(e) => setItemsPerPage(Number(e.target.value))}
@@ -877,4 +1102,3 @@ function Store() {
 }
 
 export default Store;
-

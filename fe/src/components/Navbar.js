@@ -1,25 +1,47 @@
-import React, { useState, useEffect, useRef } from 'react';
-import { Link, NavLink, useLocation, useNavigate, useSearchParams } from 'react-router-dom';
-import LiquidGlassCard from '../LiquidGlassCard';
-import html2canvas from 'html2canvas';
+import React, { useState, useEffect, useRef, useCallback } from "react";
+import {
+  Link,
+  NavLink,
+  useLocation,
+  useNavigate,
+  useSearchParams,
+} from "react-router-dom";
+import LiquidGlassCard from "../LiquidGlassCard";
+import { useTheme } from "../context/ThemeContext";
 
 function Navbar() {
-  const fullPageCanvasRef = useRef(null);
-  const viewportCanvasRef = useRef(document.createElement('canvas'));
-  const currentBgColorRef = useRef('#f4f6f8');
-  const isCapturing = useRef(false);
-  const location = useLocation(); // ไว้ดักจับเวลาเปลี่ยนหน้าเว็บ (Routing)
+  const location = useLocation();
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
   const searchContainerRef = useRef(null);
+  const { isDark, toggleTheme } = useTheme();
 
   const [user, setUser] = useState(null);
+  const [cartCount, setCartCount] = useState(0);
+  const [badgeBump, setBadgeBump] = useState(false);
 
-  // ตรวจสอบว่าอยู่หน้า Home หรือไม่
-  const isHomePage = location.pathname === '/';
+  const isHomePage = location.pathname === "/";
+
+  const handleThemeToggle = (e) => {
+    const btn = e.currentTarget;
+    toggleTheme(e);
+    if (btn && typeof btn.animate === "function") {
+      btn.animate(
+        [
+          { transform: "scale(0.84) rotate(-22deg)" },
+          { transform: "scale(1.12) rotate(10deg)", offset: 0.55 },
+          { transform: "scale(1) rotate(0deg)" },
+        ],
+        {
+          duration: 460,
+          easing: "cubic-bezier(0.34, 1.56, 0.64, 1)",
+        }
+      );
+    }
+  };
 
   // สเตทสำหรับระบบค้นหา
-  const queryParam = searchParams.get('q') || '';
+  const queryParam = searchParams.get("q") || "";
   const [searchText, setSearchText] = useState(queryParam);
   const [isFocused, setIsFocused] = useState(false);
   const [allProducts, setAllProducts] = useState([]);
@@ -29,22 +51,23 @@ function Navbar() {
     setSearchText(queryParam);
   }, [queryParam]);
 
-  // ดึงรายการสินค้าทั้งหมดมาเตรียมไว้สำหรับ Suggest Box เมื่ออยู่หน้า Home
+  // ดึงรายการสินค้าสำหรับ Suggest Box
   useEffect(() => {
-    if (isHomePage) {
-      fetch("http://localhost:5000/api/products")
-        .then((res) => res.json())
-        .then((data) => {
-          if (Array.isArray(data)) setAllProducts(data);
-        })
-        .catch(console.error);
-    }
-  }, [isHomePage]);
+    fetch("http://localhost:5000/api/products")
+      .then((res) => res.json())
+      .then((data) => {
+        if (Array.isArray(data)) setAllProducts(data);
+      })
+      .catch(console.error);
+  }, [location.pathname]);
 
   // ดักจับการคลิกนอกพื้นที่ Suggest Box เพื่อปิด Suggestion
   useEffect(() => {
     const handleClickOutside = (e) => {
-      if (searchContainerRef.current && !searchContainerRef.current.contains(e.target)) {
+      if (
+        searchContainerRef.current &&
+        !searchContainerRef.current.contains(e.target)
+      ) {
         setIsFocused(false);
       }
     };
@@ -52,196 +75,94 @@ function Navbar() {
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
-  // ดักจับการเข้าสู่ระบบของผู้ใช้
+  // ดึงจำนวนสินค้าในตะกร้า
+  const fetchCartCount = useCallback((acId) => {
+    if (!acId) {
+      setCartCount(0);
+      return;
+    }
+    fetch(`http://localhost:5000/api/cart/${acId}`)
+      .then((res) => res.json())
+      .then((data) => {
+        if (Array.isArray(data)) {
+          const totalItems = data.reduce(
+            (sum, item) => sum + (Number(item.QUANTITY) || 1),
+            0
+          );
+          setCartCount((prev) => {
+            if (prev !== totalItems && totalItems > 0) {
+              setBadgeBump(true);
+              setTimeout(() => setBadgeBump(false), 350);
+            }
+            return totalItems;
+          });
+        }
+      })
+      .catch(() => {});
+  }, []);
+
+  // ดักจับการเข้าสู่ระบบของผู้ใช้ และอัปเดตตะกร้า
   useEffect(() => {
     try {
-      const storedUser = localStorage.getItem('user');
-      setUser(storedUser ? JSON.parse(storedUser) : null);
+      const storedUser = localStorage.getItem("user");
+      const parsed = storedUser ? JSON.parse(storedUser) : null;
+      setUser(parsed);
+      fetchCartCount(parsed?.AC_ID);
     } catch (e) {
       setUser(null);
+      setCartCount(0);
     }
-  }, [location]);
+  }, [location, fetchCartCount]);
 
-  // Logic Liquid Glass: แคปทั้งหน้าและคัดลอกส่วน Viewport มาเรนเดอร์ใน Shader
   useEffect(() => {
-    let isActive = true;
-    let resizeTimer;
-    const scale = 0.5;
-
-    // ฟังก์ชันดึงสีพื้นหลังปัจจุบันของหน้าเว็บ (รองรับ Theme Switcher ในอนาคต)
-    const getWebBackgroundColor = () => {
+    const handleCartUpdated = () => {
       try {
-        const candidates = [
-          document.querySelector('.App'),
-          document.body,
-          document.documentElement,
-        ];
-        for (const el of candidates) {
-          if (!el) continue;
-          const bg = window.getComputedStyle(el).backgroundColor;
-          if (bg && bg !== 'transparent' && bg !== 'rgba(0, 0, 0, 0)') {
-            return bg;
-          }
-        }
-      } catch (e) { }
-      return '#f4f6f8';
+        const storedUser = localStorage.getItem("user");
+        const parsed = storedUser ? JSON.parse(storedUser) : null;
+        fetchCartCount(parsed?.AC_ID);
+      } catch (e) {}
     };
-
-    const updateCurrentBgColor = () => {
-      const bg = getWebBackgroundColor();
-      currentBgColorRef.current = bg;
-      return bg;
-    };
-
-    // อัปเดตสีพื้นหลังปัจจุบันทันที
-    updateCurrentBgColor();
-
-    // เริ่มต้น Canvas ของ Viewport ทันทีโดยไม่ต้องรอ html2canvas
-    // เพื่อให้เวลากดโหลดเว็บครั้งแรก Navbar จะได้สีเดียวกับ Background (ไม่เป็นกล่องดำ)
-    const vwInit = Math.max(1, Math.floor(window.innerWidth * scale));
-    const vhInit = Math.max(1, Math.floor(window.innerHeight * scale));
-    viewportCanvasRef.current.width = vwInit;
-    viewportCanvasRef.current.height = vhInit;
-    const initCtx = viewportCanvasRef.current.getContext('2d', { alpha: false });
-    if (initCtx) {
-      initCtx.fillStyle = currentBgColorRef.current;
-      initCtx.fillRect(0, 0, vwInit, vhInit);
-    }
-
-    const captureFullPage = async () => {
-      if (isCapturing.current) return;
-      isCapturing.current = true;
-      try {
-        const canvas = await html2canvas(document.body, {
-          useCORS: true,
-          scale: scale,
-          logging: false,
-        });
-        if (isActive) {
-          fullPageCanvasRef.current = canvas;
-        }
-      } catch (err) {
-        console.error("Full page capture failed", err);
-      } finally {
-        isCapturing.current = false;
-      }
-    };
-
-    // แคปทันทีที่โหลด หรือเมื่อเปลี่ยนหน้าเว็บผ่าน React Router
-    captureFullPage();
-
-    // ดักจับ Event พิเศษที่ส่งมาจากหน้าอื่นๆ (เช่น กดเปิด Modal, โหลดสินค้าใหม่เสร็จ, หรือเปลี่ยน Theme)
-    const handleManualUpdate = () => {
-      updateCurrentBgColor();
-      clearTimeout(resizeTimer);
-      captureFullPage();
-    };
-    window.addEventListener('update-glass', handleManualUpdate);
-    window.addEventListener('theme-change', handleManualUpdate);
-
-    // ดักจับการเปลี่ยนแปลง Theme (เช่น การสลับคลาส dark/light หรือ style ใน html / body / .App)
-    const themeObserver = new MutationObserver(() => {
-      updateCurrentBgColor();
-      clearTimeout(resizeTimer);
-      resizeTimer = setTimeout(captureFullPage, 50);
-    });
-
-    themeObserver.observe(document.documentElement, {
-      attributes: true,
-      attributeFilter: ['class', 'style', 'data-theme'],
-    });
-    if (document.body) {
-      themeObserver.observe(document.body, {
-        attributes: true,
-        attributeFilter: ['class', 'style', 'data-theme'],
-      });
-    }
-    const appEl = document.querySelector('.App');
-    if (appEl) {
-      themeObserver.observe(appEl, {
-        attributes: true,
-        attributeFilter: ['class', 'style', 'data-theme'],
-      });
-    }
-
-    const resizeObserver = new ResizeObserver(() => {
-      clearTimeout(resizeTimer);
-      // ลดเวลาหน่วงลงเหลือ 150ms เพื่อให้แคปตามได้ไวขึ้นเมื่อหน้าเว็บยืดออก
-      resizeTimer = setTimeout(captureFullPage, 150);
-    });
-    resizeObserver.observe(document.body);
-
-    const renderLoop = () => {
-      if (!isActive) return;
-
-      const vw = Math.max(1, Math.floor(window.innerWidth * scale));
-      const vh = Math.max(1, Math.floor(window.innerHeight * scale));
-
-      if (viewportCanvasRef.current.width !== vw || viewportCanvasRef.current.height !== vh) {
-        viewportCanvasRef.current.width = vw;
-        viewportCanvasRef.current.height = vh;
-      }
-
-      const ctx = viewportCanvasRef.current.getContext('2d', { alpha: false });
-      if (ctx) {
-        // ถมสีพื้นหลังไว้ก่อนเสมอ (ดึงจาก currentBgColorRef)
-        // ช่วยแก้ปัญหา "กล่องดำ" ระหว่างรอ Render และตอนเลื่อนจอลงเร็วๆ แล้วหลุดขอบภาพที่แคปไว้
-        ctx.fillStyle = currentBgColorRef.current || "#f4f6f8";
-        ctx.fillRect(0, 0, vw, vh);
-
-        if (fullPageCanvasRef.current) {
-          const sy = window.scrollY * scale;
-          const sx = window.scrollX * scale;
-          ctx.drawImage(
-            fullPageCanvasRef.current,
-            sx, sy, vw, vh,
-            0, 0, vw, vh
-          );
-        }
-      }
-
-      requestAnimationFrame(renderLoop);
-    };
-
-    renderLoop();
-
-    return () => {
-      isActive = false;
-      resizeObserver.disconnect();
-      themeObserver.disconnect();
-      window.removeEventListener('update-glass', handleManualUpdate);
-      window.removeEventListener('theme-change', handleManualUpdate);
-      clearTimeout(resizeTimer);
-    };
-  }, [location.pathname]);
+    window.addEventListener("cart-updated", handleCartUpdated);
+    return () => window.removeEventListener("cart-updated", handleCartUpdated);
+  }, [fetchCartCount]);
 
   const handleLogout = () => {
-    localStorage.removeItem('user');
+    localStorage.removeItem("user");
     setUser(null);
-    navigate('/login');
+    setCartCount(0);
+    navigate("/login");
   };
 
   // ฟังก์ชันการค้นหา
   const handleSearchChange = (val) => {
     setSearchText(val);
-    if (val.trim()) {
-      setSearchParams({ q: val }, { replace: true });
-    } else {
-      setSearchParams({}, { replace: true });
+    if (isHomePage) {
+      if (val.trim()) {
+        setSearchParams({ q: val }, { replace: true });
+      } else {
+        setSearchParams({}, { replace: true });
+      }
     }
   };
 
   const handleClearSearch = () => {
-    setSearchText('');
-    setSearchParams({}, { replace: true });
+    setSearchText("");
+    if (isHomePage) {
+      setSearchParams({}, { replace: true });
+    }
     setIsFocused(false);
   };
 
   const handleSearchSubmit = (e) => {
     if (e) e.preventDefault();
-    if (searchText.trim()) {
-      setSearchParams({ q: searchText.trim() }, { replace: true });
-    } else {
+    const q = searchText.trim();
+    if (q) {
+      if (isHomePage) {
+        setSearchParams({ q }, { replace: true });
+      } else {
+        navigate(`/?q=${encodeURIComponent(q)}`);
+      }
+    } else if (isHomePage) {
       setSearchParams({}, { replace: true });
     }
     setIsFocused(false);
@@ -249,7 +170,11 @@ function Navbar() {
 
   const handleSelectSuggestion = (term) => {
     setSearchText(term);
-    setSearchParams({ q: term }, { replace: true });
+    if (isHomePage) {
+      setSearchParams({ q: term }, { replace: true });
+    } else {
+      navigate(`/?q=${encodeURIComponent(term)}`);
+    }
     setIsFocused(false);
   };
 
@@ -263,78 +188,111 @@ function Navbar() {
 
   const matchedCategories = trimmed
     ? Array.from(
-      new Set(
-        allProducts
-          .filter((p) => p.TYPE && p.TYPE.toLowerCase().includes(trimmed))
-          .map((p) => p.TYPE)
+        new Set(
+          allProducts
+            .filter((p) => p.TYPE && p.TYPE.toLowerCase().includes(trimmed))
+            .map((p) => p.TYPE)
+        )
       )
-    )
     : [];
 
   const matchedStores = trimmed
     ? Array.from(
-      new Set(
-        allProducts
-          .filter((p) => p.ST_NAME && p.ST_NAME.toLowerCase().includes(trimmed))
-          .map((p) => p.ST_NAME)
+        new Set(
+          allProducts
+            .filter(
+              (p) => p.ST_NAME && p.ST_NAME.toLowerCase().includes(trimmed)
+            )
+            .map((p) => p.ST_NAME)
+        )
       )
-    )
     : [];
 
   const matchedProducts = trimmed
     ? allProducts.filter(
-      (p) =>
-        (p.PRODUCT_NAME && p.PRODUCT_NAME.toLowerCase().includes(trimmed)) ||
-        (p.TYPE && p.TYPE.toLowerCase().includes(trimmed)) ||
-        (p.ST_NAME && p.ST_NAME.toLowerCase().includes(trimmed))
-    )
+        (p) =>
+          (p.PRODUCT_NAME && p.PRODUCT_NAME.toLowerCase().includes(trimmed)) ||
+          (p.TYPE && p.TYPE.toLowerCase().includes(trimmed)) ||
+          (p.ST_NAME && p.ST_NAME.toLowerCase().includes(trimmed))
+      )
     : [];
 
+  const suggestItemBg = isDark
+    ? "rgba(15, 23, 42, 0.65)"
+    : "rgba(255, 255, 255, 0.55)";
+  const suggestItemHoverBg = isDark
+    ? "rgba(30, 41, 59, 0.94)"
+    : "rgba(255, 255, 255, 0.92)";
+
   const linkStyle = ({ isActive }) => ({
-    textDecoration: 'none',
-    color: isActive ? '#000000' : '#828891',
-    fontWeight: isActive ? 'bold' : '500',
-    padding: '0.4rem 0.8rem',
-    borderRadius: '9999px',
-    transition: 'all 0.3s ease',
-    backgroundColor: isActive ? 'rgba(255, 255, 255, 0.2)' : 'transparent',
+    textDecoration: "none",
+    color: isActive
+      ? isDark
+        ? "#f8fafc"
+        : "#0f172a"
+      : isDark
+      ? "#cbd5e1"
+      : "#64748b",
+    fontWeight: isActive ? "700" : "500",
+    padding: "0.45rem 0.85rem",
+    borderRadius: "9999px",
+    transition: "all 0.25s cubic-bezier(0.16, 1, 0.3, 1)",
+    backgroundColor: isActive
+      ? isDark
+        ? "rgba(59, 130, 246, 0.24)"
+        : "rgba(255, 255, 255, 0.65)"
+      : "transparent",
+    boxShadow: isActive
+      ? isDark
+        ? "0 2px 10px rgba(59, 130, 246, 0.22), inset 0 0 0 1px rgba(147, 197, 253, 0.3)"
+        : "0 2px 8px rgba(15, 23, 42, 0.08)"
+      : "none",
+    display: "inline-flex",
+    alignItems: "center",
+    gap: "0.4rem",
+    fontSize: "0.9rem",
   });
 
   return (
     <div
       data-html2canvas-ignore="true"
       style={{
-        position: 'fixed',
-        top: '1.5rem',
-        left: '50%',
-        transform: 'translateX(-50%)',
-        width: '92%',
-        maxWidth: isHomePage ? '1040px' : '900px',
-        height: '64px',
+        position: "fixed",
+        top: "1.25rem",
+        left: "50%",
+        transform: "translateX(-50%)",
+        width: "92%",
+        maxWidth: "1080px",
+        height: "64px",
         zIndex: 1000,
-        transition: 'max-width 0.3s ease',
+        transition: "max-width 0.35s cubic-bezier(0.16, 1, 0.3, 1)",
       }}
     >
       <LiquidGlassCard
         borderRadius={32}
         progress={0}
-        dynamicBgSource={viewportCanvasRef.current}
-        fallbackBgColor={currentBgColorRef.current}
+        blurAmount={14}
+        ignoreCapture={true}
         style={{
-          width: '100%',
-          height: '100%',
-          borderRadius: '32px',
-          boxShadow: '0 10px 25px rgba(0,0,0,0.15)',
+          width: "100%",
+          height: "100%",
+          borderRadius: "32px",
+          boxShadow: isDark
+            ? "0 8px 24px rgba(0, 0, 0, 0.45), 0 2px 8px rgba(0, 0, 0, 0.3)"
+            : "0 4px 12px rgba(15, 23, 42, 0.06), 0 12px 28px rgba(15, 23, 42, 0.12)",
+          border: isDark
+            ? "1px solid rgba(148, 163, 184, 0.24)"
+            : "1px solid rgba(255, 255, 255, 0.55)",
         }}
       >
         <div
           style={{
-            display: 'flex',
-            justifyContent: 'space-between',
-            alignItems: 'center',
-            padding: '0 1rem 0 1.5rem',
-            height: '100%',
-            gap: '1rem',
+            display: "flex",
+            justifyContent: "space-between",
+            alignItems: "center",
+            padding: "0 1rem 0 1.4rem",
+            height: "100%",
+            gap: "0.85rem",
           }}
         >
           {/* โลโก้ */}
@@ -344,424 +302,476 @@ function Navbar() {
               if (isHomePage) setSearchParams({});
             }}
             style={{
-              fontSize: '1.25rem',
-              fontWeight: 'bold',
-              textDecoration: 'none',
-              color: '#000000',
-              marginRight: '0.5rem',
-              whiteSpace: 'nowrap',
+              fontSize: "1.18rem",
+              fontWeight: "800",
+              textDecoration: "none",
+              color: isDark ? "#f8fafc" : "#0f172a",
+              marginRight: "0.2rem",
+              whiteSpace: "nowrap",
               flexShrink: 0,
+              display: "flex",
+              alignItems: "center",
+              gap: "0.4rem",
+              letterSpacing: "-0.02em",
+              transition: "color 0.2s ease",
             }}
           >
-            🛍️ OnlinePlatform
+            <span style={{ fontSize: "1.35rem" }}>🛍️</span>
+            <span>OnlinePlatform</span>
           </Link>
 
-          {/* กล่อง Search Engine: แสดงเฉพาะเมื่ออยู่หน้า Home */}
-          {isHomePage && (
-            <div
-              ref={searchContainerRef}
+          {/* กล่อง Search Engine: ค้นหาได้จากทุกหน้า */}
+          <div
+            ref={searchContainerRef}
+            style={{
+              position: "relative",
+              flex: 1,
+              maxWidth: "410px",
+            }}
+          >
+            <form
+              onSubmit={handleSearchSubmit}
               style={{
-                position: 'relative',
-                flex: 1,
-                maxWidth: '400px',
+                position: "relative",
+                width: "100%",
+                display: "flex",
+                alignItems: "center",
               }}
             >
-              <form
-                onSubmit={handleSearchSubmit}
+              <span
                 style={{
-                  position: 'relative',
-                  width: '100%',
-                  display: 'flex',
-                  alignItems: 'center',
+                  position: "absolute",
+                  left: "13px",
+                  fontSize: "0.9rem",
+                  color: isFocused
+                    ? isDark
+                      ? "#60a5fa"
+                      : "#2563eb"
+                    : isDark
+                    ? "#94a3b8"
+                    : "#64748b",
+                  pointerEvents: "none",
+                  transition: "color 0.2s ease",
                 }}
               >
-                <span
+                🔍
+              </span>
+              <input
+                type="text"
+                className="navbar-search-input"
+                placeholder="ค้นหาชื่อสินค้า, หมวดหมู่, ร้านค้า..."
+                value={searchText}
+                onChange={(e) => handleSearchChange(e.target.value)}
+                onFocus={() => setIsFocused(true)}
+                style={{
+                  width: "100%",
+                  padding: "0.52rem 2.2rem 0.52rem 2.35rem",
+                  borderRadius: "9999px",
+                  border: isFocused
+                    ? isDark
+                      ? "1.5px solid #60a5fa"
+                      : "1.5px solid #2563eb"
+                    : isDark
+                    ? "1px solid rgba(148, 163, 184, 0.28)"
+                    : "1px solid rgba(15, 23, 42, 0.12)",
+                  backgroundColor: isFocused
+                    ? isDark
+                      ? "rgba(15, 23, 42, 0.85)"
+                      : "rgba(255, 255, 255, 0.85)"
+                    : isDark
+                    ? "rgba(15, 23, 42, 0.55)"
+                    : "rgba(255, 255, 255, 0.55)",
+                  backdropFilter: "blur(8px)",
+                  fontSize: "0.86rem",
+                  outline: "none",
+                  transition: "all 0.22s ease",
+                  boxShadow: isFocused
+                    ? isDark
+                      ? "0 0 0 3.5px rgba(96, 165, 250, 0.22)"
+                      : "0 0 0 3.5px rgba(37, 99, 235, 0.16)"
+                    : "0 1px 3px rgba(0, 0, 0, 0.04)",
+                  color: isDark ? "#f8fafc" : "#0f172a",
+                  boxSizing: "border-box",
+                }}
+              />
+              {searchText && (
+                <button
+                  type="button"
+                  onClick={handleClearSearch}
                   style={{
-                    position: 'absolute',
-                    left: '12px',
-                    fontSize: '0.9rem',
-                    color: '#64748b',
-                    pointerEvents: 'none',
+                    position: "absolute",
+                    right: "8px",
+                    background: isDark
+                      ? "rgba(148, 163, 184, 0.22)"
+                      : "rgba(100, 116, 139, 0.12)",
+                    border: "none",
+                    color: isDark ? "#e2e8f0" : "#475569",
+                    cursor: "pointer",
+                    fontSize: "0.75rem",
+                    width: "22px",
+                    height: "22px",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    borderRadius: "50%",
+                    transition: "background-color 0.15s ease",
+                  }}
+                  title="ล้างคำค้นหา"
+                >
+                  ✕
+                </button>
+              )}
+            </form>
+
+            {/* Suggest Box ใช้ LiquidGlassCard อัตโนมัติพร้อม Animation */}
+            {isFocused && searchText.trim().length > 0 && (
+              <div
+                style={{
+                  position: "absolute",
+                  top: "calc(100% + 12px)",
+                  left: "50%",
+                  transform: "translateX(-50%)",
+                  width: "100%",
+                  minWidth: "380px",
+                  maxWidth: "460px",
+                  zIndex: 1001,
+                  animation:
+                    "dropdownSlideDown 0.24s cubic-bezier(0.16, 1, 0.3, 1) both",
+                }}
+              >
+                <LiquidGlassCard
+                  borderRadius={20}
+                  progress={0}
+                  blurAmount={16}
+                  ignoreCapture={true}
+                  style={{
+                    width: "100%",
+                    borderRadius: "20px",
+                    boxShadow: isDark
+                      ? "0 22px 44px rgba(0, 0, 0, 0.55)"
+                      : "0 20px 40px rgba(15, 23, 42, 0.22)",
+                    border: isDark
+                      ? "1px solid rgba(148, 163, 184, 0.28)"
+                      : "1px solid rgba(255, 255, 255, 0.65)",
+                    overflow: "hidden",
                   }}
                 >
-                  🔍
-                </span>
-                <input
-                  type="text"
-                  placeholder="ค้นหาชื่อสินค้า, หมวดหมู่, ร้านค้า..."
-                  value={searchText}
-                  onChange={(e) => handleSearchChange(e.target.value)}
-                  onFocus={() => setIsFocused(true)}
-                  style={{
-                    width: '100%',
-                    padding: '0.5rem 2.2rem 0.5rem 2.3rem',
-                    borderRadius: '9999px',
-                    border: isFocused
-                      ? '1.5px solid #2563eb'
-                      : '1px solid rgba(0, 0, 0, 0.12)',
-                    backgroundColor: 'rgba(255, 255, 255, 0.55)',
-                    backdropFilter: 'blur(8px)',
-                    fontSize: '0.85rem',
-                    outline: 'none',
-                    transition: 'all 0.2s ease',
-                    boxShadow: isFocused
-                      ? '0 0 0 3px rgba(37, 99, 235, 0.15)'
-                      : '0 1px 3px rgba(0, 0, 0, 0.04)',
-                    color: '#0f172a',
-                    boxSizing: 'border-box',
-                  }}
-                />
-                {searchText && (
-                  <button
-                    type="button"
-                    onClick={handleClearSearch}
+                  <div
                     style={{
-                      position: 'absolute',
-                      right: '10px',
-                      background: 'none',
-                      border: 'none',
-                      color: '#64748b',
-                      cursor: 'pointer',
-                      fontSize: '0.85rem',
-                      padding: '2px 6px',
-                      borderRadius: '50%',
-                    }}
-                    title="ล้างคำค้นหา"
-                  >
-                    ✕
-                  </button>
-                )}
-              </form>
-
-              {/* Suggest Box ใช้ LiquidGlassCard ร่วมกับ viewportCanvasRef ของ Navbar */}
-              {isFocused && searchText.trim().length > 0 && (
-                <div
-                  style={{
-                    position: 'absolute',
-                    top: 'calc(100% + 12px)',
-                    left: '50%',
-                    transform: 'translateX(-50%)',
-                    width: '100%',
-                    minWidth: '380px',
-                    maxWidth: '460px',
-                    zIndex: 1001,
-                  }}
-                >
-                  <LiquidGlassCard
-                    borderRadius={20}
-                    progress={0}
-                    dynamicBgSource={viewportCanvasRef.current}
-                    fallbackBgColor={currentBgColorRef.current}
-                    style={{
-                      width: '100%',
-                      borderRadius: '20px',
-                      boxShadow: '0 20px 40px rgba(0, 0, 0, 0.2)',
-                      border: '1px solid rgba(255, 255, 255, 0.5)',
-                      overflow: 'hidden',
+                      padding: "0.85rem",
+                      maxHeight: "380px",
+                      overflowY: "auto",
+                      color: isDark ? "#f1f5f9" : "#1e293b",
                     }}
                   >
-                    <div
-                      style={{
-                        padding: '0.85rem',
-                        maxHeight: '380px',
-                        overflowY: 'auto',
-                        color: '#1e293b',
-                      }}
-                    >
-                      {/* 1. แสดงหมวดหมู่สินค้าที่ตรงกัน */}
-                      {matchedCategories.length > 0 && (
-                        <div style={{ marginBottom: '0.75rem' }}>
-                          <div
-                            style={{
-                              fontSize: '0.75rem',
-                              fontWeight: 'bold',
-                              color: '#64748b',
-                              marginBottom: '0.35rem',
-                              paddingLeft: '0.4rem',
-                            }}
-                          >
-                            🏷️ หมวดหมู่สินค้า
-                          </div>
-                          {matchedCategories.map((cat) => (
-                            <div
-                              key={cat}
-                              onClick={() => handleSelectSuggestion(cat)}
-                              style={{
-                                display: 'flex',
-                                alignItems: 'center',
-                                justifyContent: 'space-between',
-                                padding: '0.45rem 0.75rem',
-                                borderRadius: '8px',
-                                cursor: 'pointer',
-                                backgroundColor: 'rgba(255, 255, 255, 0.45)',
-                                marginBottom: '0.25rem',
-                                transition: 'all 0.15s ease',
-                              }}
-                              onMouseEnter={(e) =>
-                              (e.currentTarget.style.backgroundColor =
-                                'rgba(255, 255, 255, 0.85)')
-                              }
-                              onMouseLeave={(e) =>
-                              (e.currentTarget.style.backgroundColor =
-                                'rgba(255, 255, 255, 0.45)')
-                              }
-                            >
-                              <span
-                                style={{
-                                  fontSize: '0.85rem',
-                                  fontWeight: 'bold',
-                                  color: '#1e293b',
-                                }}
-                              >
-                                {cat}
-                              </span>
-                              <span
-                                style={{
-                                  fontSize: '0.75rem',
-                                  color: '#2563eb',
-                                  fontWeight: '500',
-                                }}
-                              >
-                                กรองหมวดหมู่นี้ →
-                              </span>
-                            </div>
-                          ))}
+                    {/* 1. แสดงหมวดหมู่สินค้าที่ตรงกัน */}
+                    {matchedCategories.length > 0 && (
+                      <div style={{ marginBottom: "0.75rem" }}>
+                        <div
+                          style={{
+                            fontSize: "0.75rem",
+                            fontWeight: "bold",
+                            color: isDark ? "#94a3b8" : "#64748b",
+                            marginBottom: "0.35rem",
+                            paddingLeft: "0.4rem",
+                          }}
+                        >
+                          🏷️ หมวดหมู่สินค้า
                         </div>
-                      )}
-
-                      {/* 2. แสดงชื่อร้านค้าที่ตรงกัน */}
-                      {matchedStores.length > 0 && (
-                        <div style={{ marginBottom: '0.75rem' }}>
+                        {matchedCategories.map((cat) => (
                           <div
+                            key={cat}
+                            onClick={() => handleSelectSuggestion(cat)}
                             style={{
-                              fontSize: '0.75rem',
-                              fontWeight: 'bold',
-                              color: '#64748b',
-                              marginBottom: '0.35rem',
-                              paddingLeft: '0.4rem',
+                              display: "flex",
+                              alignItems: "center",
+                              justifyContent: "space-between",
+                              padding: "0.45rem 0.75rem",
+                              borderRadius: "10px",
+                              cursor: "pointer",
+                              backgroundColor: suggestItemBg,
+                              marginBottom: "0.25rem",
+                              transition: "all 0.15s ease",
+                            }}
+                            onMouseEnter={(e) => {
+                              e.currentTarget.style.backgroundColor =
+                                suggestItemHoverBg;
+                              e.currentTarget.style.transform =
+                                "translateX(3px)";
+                            }}
+                            onMouseLeave={(e) => {
+                              e.currentTarget.style.backgroundColor =
+                                suggestItemBg;
+                              e.currentTarget.style.transform = "translateX(0)";
                             }}
                           >
-                            🏪 ร้านค้า
-                          </div>
-                          {matchedStores.map((st) => (
-                            <div
-                              key={st}
-                              onClick={() => handleSelectSuggestion(st)}
+                            <span
                               style={{
-                                display: 'flex',
-                                alignItems: 'center',
-                                justifyContent: 'space-between',
-                                padding: '0.45rem 0.75rem',
-                                borderRadius: '8px',
-                                cursor: 'pointer',
-                                backgroundColor: 'rgba(255, 255, 255, 0.45)',
-                                marginBottom: '0.25rem',
-                                transition: 'all 0.15s ease',
+                                fontSize: "0.85rem",
+                                fontWeight: "bold",
+                                color: isDark ? "#f1f5f9" : "#1e293b",
                               }}
-                              onMouseEnter={(e) =>
-                              (e.currentTarget.style.backgroundColor =
-                                'rgba(255, 255, 255, 0.85)')
-                              }
-                              onMouseLeave={(e) =>
-                              (e.currentTarget.style.backgroundColor =
-                                'rgba(255, 255, 255, 0.45)')
-                              }
                             >
-                              <span
-                                style={{
-                                  fontSize: '0.85rem',
-                                  fontWeight: 'bold',
-                                  color: '#1e293b',
-                                }}
-                              >
-                                {st}
-                              </span>
-                              <span
-                                style={{
-                                  fontSize: '0.75rem',
-                                  color: '#059669',
-                                  fontWeight: '500',
-                                }}
-                              >
-                                กรองร้านค้านี้ →
-                              </span>
-                            </div>
-                          ))}
+                              {cat}
+                            </span>
+                            <span
+                              style={{
+                                fontSize: "0.75rem",
+                                color: isDark ? "#60a5fa" : "#2563eb",
+                                fontWeight: "600",
+                              }}
+                            >
+                              กรองหมวดหมู่นี้ →
+                            </span>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+
+                    {/* 2. แสดงชื่อร้านค้าที่ตรงกัน */}
+                    {matchedStores.length > 0 && (
+                      <div style={{ marginBottom: "0.75rem" }}>
+                        <div
+                          style={{
+                            fontSize: "0.75rem",
+                            fontWeight: "bold",
+                            color: isDark ? "#94a3b8" : "#64748b",
+                            marginBottom: "0.35rem",
+                            paddingLeft: "0.4rem",
+                          }}
+                        >
+                          🏪 ร้านค้า
                         </div>
-                      )}
-
-                      {/* 3. แสดงสินค้าที่ตรงกัน */}
-                      {matchedProducts.length > 0 && (
-                        <div style={{ marginBottom: '0.5rem' }}>
+                        {matchedStores.map((st) => (
                           <div
+                            key={st}
+                            onClick={() => handleSelectSuggestion(st)}
                             style={{
-                              fontSize: '0.75rem',
-                              fontWeight: 'bold',
-                              color: '#64748b',
-                              marginBottom: '0.35rem',
-                              paddingLeft: '0.4rem',
+                              display: "flex",
+                              alignItems: "center",
+                              justifyContent: "space-between",
+                              padding: "0.45rem 0.75rem",
+                              borderRadius: "10px",
+                              cursor: "pointer",
+                              backgroundColor: suggestItemBg,
+                              marginBottom: "0.25rem",
+                              transition: "all 0.15s ease",
+                            }}
+                            onMouseEnter={(e) => {
+                              e.currentTarget.style.backgroundColor =
+                                suggestItemHoverBg;
+                              e.currentTarget.style.transform =
+                                "translateX(3px)";
+                            }}
+                            onMouseLeave={(e) => {
+                              e.currentTarget.style.backgroundColor =
+                                suggestItemBg;
+                              e.currentTarget.style.transform = "translateX(0)";
                             }}
                           >
-                            📦 สินค้าที่ตรงกัน ({matchedProducts.length} ชิ้น)
-                          </div>
-                          {matchedProducts.slice(0, 5).map((item) => (
-                            <div
-                              key={item.PRODUCT_ID}
-                              onClick={() => handleSelectProduct(item.PRODUCT_ID)}
+                            <span
                               style={{
-                                display: 'flex',
-                                alignItems: 'center',
-                                gap: '0.7rem',
-                                padding: '0.45rem 0.6rem',
-                                borderRadius: '10px',
-                                cursor: 'pointer',
-                                backgroundColor: 'rgba(255, 255, 255, 0.45)',
-                                marginBottom: '0.3rem',
-                                transition: 'all 0.15s ease',
+                                fontSize: "0.85rem",
+                                fontWeight: "bold",
+                                color: isDark ? "#f1f5f9" : "#1e293b",
                               }}
-                              onMouseEnter={(e) =>
-                              (e.currentTarget.style.backgroundColor =
-                                'rgba(255, 255, 255, 0.85)')
-                              }
-                              onMouseLeave={(e) =>
-                              (e.currentTarget.style.backgroundColor =
-                                'rgba(255, 255, 255, 0.45)')
-                              }
                             >
-                              <img
-                                src={
-                                  item.IMAGE_URL ||
-                                  `https://placehold.co/40x40?text=${encodeURIComponent(
-                                    item.PRODUCT_NAME
-                                  )}`
-                                }
-                                alt={item.PRODUCT_NAME}
+                              {st}
+                            </span>
+                            <span
+                              style={{
+                                fontSize: "0.75rem",
+                                color: isDark ? "#34d399" : "#059669",
+                                fontWeight: "600",
+                              }}
+                            >
+                              กรองร้านค้านี้ →
+                            </span>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+
+                    {/* 3. แสดงสินค้าที่ตรงกัน */}
+                    {matchedProducts.length > 0 && (
+                      <div style={{ marginBottom: "0.5rem" }}>
+                        <div
+                          style={{
+                            fontSize: "0.75rem",
+                            fontWeight: "bold",
+                            color: isDark ? "#94a3b8" : "#64748b",
+                            marginBottom: "0.35rem",
+                            paddingLeft: "0.4rem",
+                          }}
+                        >
+                          📦 สินค้าที่ตรงกัน ({matchedProducts.length} ชิ้น)
+                        </div>
+                        {matchedProducts.slice(0, 5).map((item) => (
+                          <div
+                            key={item.PRODUCT_ID}
+                            onClick={() =>
+                              handleSelectProduct(item.PRODUCT_ID)
+                            }
+                            style={{
+                              display: "flex",
+                              alignItems: "center",
+                              gap: "0.7rem",
+                              padding: "0.45rem 0.6rem",
+                              borderRadius: "10px",
+                              cursor: "pointer",
+                              backgroundColor: suggestItemBg,
+                              marginBottom: "0.3rem",
+                              transition: "all 0.15s ease",
+                            }}
+                            onMouseEnter={(e) => {
+                              e.currentTarget.style.backgroundColor =
+                                suggestItemHoverBg;
+                              e.currentTarget.style.transform =
+                                "translateX(3px)";
+                            }}
+                            onMouseLeave={(e) => {
+                              e.currentTarget.style.backgroundColor =
+                                suggestItemBg;
+                              e.currentTarget.style.transform = "translateX(0)";
+                            }}
+                          >
+                            <img
+                              src={
+                                item.IMAGE_URL ||
+                                `https://placehold.co/40x40?text=${encodeURIComponent(
+                                  item.PRODUCT_NAME
+                                )}`
+                              }
+                              alt={item.PRODUCT_NAME}
+                              style={{
+                                width: "38px",
+                                height: "38px",
+                                objectFit: "cover",
+                                borderRadius: "8px",
+                                flexShrink: 0,
+                              }}
+                            />
+                            <div style={{ flex: 1, minWidth: 0 }}>
+                              <div
                                 style={{
-                                  width: '38px',
-                                  height: '38px',
-                                  objectFit: 'cover',
-                                  borderRadius: '6px',
-                                  flexShrink: 0,
+                                  fontSize: "0.85rem",
+                                  fontWeight: "bold",
+                                  color: isDark ? "#f8fafc" : "#0f172a",
+                                  whiteSpace: "nowrap",
+                                  overflow: "hidden",
+                                  textOverflow: "ellipsis",
                                 }}
-                              />
-                              <div style={{ flex: 1, minWidth: 0 }}>
-                                <div
-                                  style={{
-                                    fontSize: '0.85rem',
-                                    fontWeight: 'bold',
-                                    color: '#0f172a',
-                                    whiteSpace: 'nowrap',
-                                    overflow: 'hidden',
-                                    textOverflow: 'ellipsis',
-                                  }}
-                                >
-                                  {item.PRODUCT_NAME}
-                                </div>
-                                <div
-                                  style={{
-                                    fontSize: '0.72rem',
-                                    color: '#64748b',
-                                  }}
-                                >
-                                  {item.TYPE} • {item.ST_NAME}
-                                </div>
+                              >
+                                {item.PRODUCT_NAME}
                               </div>
                               <div
                                 style={{
-                                  fontSize: '0.85rem',
-                                  fontWeight: 'bold',
-                                  color: '#059669',
-                                  flexShrink: 0,
+                                  fontSize: "0.72rem",
+                                  color: isDark ? "#94a3b8" : "#64748b",
                                 }}
                               >
-                                ฿
-                                {item.PRODUCT_PRICE
-                                  ? item.PRODUCT_PRICE.toLocaleString()
-                                  : 0}
+                                {item.TYPE} • {item.ST_NAME}
                               </div>
                             </div>
-                          ))}
-                        </div>
-                      )}
+                            <div
+                              style={{
+                                fontSize: "0.85rem",
+                                fontWeight: "bold",
+                                color: isDark ? "#34d399" : "#059669",
+                                flexShrink: 0,
+                              }}
+                            >
+                              ฿
+                              {item.PRODUCT_PRICE
+                                ? item.PRODUCT_PRICE.toLocaleString()
+                                : 0}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
 
-                      {/* 4. สรุปผลลัพธ์ หรือแจ้งเตือนเมื่อไม่พบ */}
-                      {matchedProducts.length > 0 ? (
+                    {/* 4. สรุปผลลัพธ์ หรือแจ้งเตือนเมื่อไม่พบ */}
+                    {matchedProducts.length > 0 ? (
+                      <div
+                        onClick={handleSearchSubmit}
+                        style={{
+                          marginTop: "0.5rem",
+                          padding: "0.55rem",
+                          borderRadius: "10px",
+                          textAlign: "center",
+                          fontSize: "0.82rem",
+                          fontWeight: "bold",
+                          color: isDark ? "#93c5fd" : "#1d4ed8",
+                          backgroundColor: isDark
+                            ? "rgba(59, 130, 246, 0.22)"
+                            : "rgba(37, 99, 235, 0.14)",
+                          cursor: "pointer",
+                          transition: "all 0.15s ease",
+                        }}
+                        onMouseEnter={(e) =>
+                          (e.currentTarget.style.backgroundColor = isDark
+                            ? "rgba(59, 130, 246, 0.35)"
+                            : "rgba(37, 99, 235, 0.24)")
+                        }
+                        onMouseLeave={(e) =>
+                          (e.currentTarget.style.backgroundColor = isDark
+                            ? "rgba(59, 130, 246, 0.22)"
+                            : "rgba(37, 99, 235, 0.14)")
+                        }
+                      >
+                        🔍 ดูผลลัพธ์ทั้งหมดสำหรับ "{searchText}" (
+                        {matchedProducts.length} รายการ)
+                      </div>
+                    ) : (
+                      <div
+                        style={{
+                          padding: "1.25rem 0.5rem",
+                          textAlign: "center",
+                          color: isDark ? "#94a3b8" : "#64748b",
+                        }}
+                      >
                         <div
-                          onClick={handleSearchSubmit}
                           style={{
-                            marginTop: '0.5rem',
-                            padding: '0.55rem',
-                            borderRadius: '10px',
-                            textAlign: 'center',
-                            fontSize: '0.82rem',
-                            fontWeight: 'bold',
-                            color: '#1d4ed8',
-                            backgroundColor: 'rgba(37, 99, 235, 0.12)',
-                            cursor: 'pointer',
-                            transition: 'all 0.15s ease',
+                            fontSize: "1.6rem",
+                            marginBottom: "0.35rem",
                           }}
-                          onMouseEnter={(e) =>
-                          (e.currentTarget.style.backgroundColor =
-                            'rgba(37, 99, 235, 0.22)')
-                          }
-                          onMouseLeave={(e) =>
-                          (e.currentTarget.style.backgroundColor =
-                            'rgba(37, 99, 235, 0.12)')
-                          }
                         >
-                          🔍 ดูผลลัพธ์ทั้งหมดสำหรับ "{searchText}" (
-                          {matchedProducts.length} รายการ)
+                          🔍
                         </div>
-                      ) : (
                         <div
                           style={{
-                            padding: '1.25rem 0.5rem',
-                            textAlign: 'center',
-                            color: '#64748b',
+                            fontSize: "0.85rem",
+                            fontWeight: "bold",
+                            color: isDark ? "#e2e8f0" : "#334155",
                           }}
                         >
-                          <div
-                            style={{
-                              fontSize: '1.6rem',
-                              marginBottom: '0.35rem',
-                            }}
-                          >
-                            🔍
-                          </div>
-                          <div
-                            style={{
-                              fontSize: '0.85rem',
-                              fontWeight: 'bold',
-                              color: '#334155',
-                            }}
-                          >
-                            ไม่พบสินค้า หมวดหมู่ หรือร้านค้าที่ตรงกับ "
-                            {searchText}"
-                          </div>
-                          <div
-                            style={{
-                              fontSize: '0.75rem',
-                              marginTop: '0.25rem',
-                            }}
-                          >
-                            ลองค้นหาด้วยคำค้นอื่น
-                          </div>
+                          ไม่พบสินค้า หมวดหมู่ หรือร้านค้าที่ตรงกับ "
+                          {searchText}"
                         </div>
-                      )}
-                    </div>
-                  </LiquidGlassCard>
-                </div>
-              )}
-            </div>
-          )}
+                        <div
+                          style={{
+                            fontSize: "0.75rem",
+                            marginTop: "0.25rem",
+                          }}
+                        >
+                          ลองค้นหาด้วยคำค้นอื่น
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </LiquidGlassCard>
+              </div>
+            )}
+          </div>
 
           {/* เมนูนำทางขวา */}
           <div
             style={{
-              display: 'flex',
-              gap: '0.25rem',
-              alignItems: 'center',
-              whiteSpace: 'nowrap',
+              display: "flex",
+              gap: "0.3rem",
+              alignItems: "center",
+              whiteSpace: "nowrap",
               flexShrink: 0,
             }}
           >
@@ -769,27 +779,152 @@ function Navbar() {
               หน้าแรก
             </NavLink>
             <NavLink to="/market" style={linkStyle}>
-              การสั่งซื้อ
+              <span>การสั่งซื้อ</span>
+              {cartCount > 0 && (
+                <span
+                  style={{
+                    backgroundColor: "#2563eb",
+                    color: "#ffffff",
+                    fontSize: "0.72rem",
+                    fontWeight: "800",
+                    minWidth: "20px",
+                    height: "20px",
+                    padding: "0 6px",
+                    borderRadius: "9999px",
+                    display: "inline-flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    boxShadow: "0 2px 6px rgba(37, 99, 235, 0.35)",
+                    animation: badgeBump
+                      ? "badgePop 0.35s cubic-bezier(0.16, 1, 0.3, 1)"
+                      : "none",
+                  }}
+                >
+                  {cartCount > 99 ? "99+" : cartCount}
+                </span>
+              )}
             </NavLink>
             <NavLink to="/profile" style={linkStyle}>
               โปรไฟล์
             </NavLink>
 
+            {/* ปุ่มสลับธีม Light / Dark Mode พร้อม Animation และการขยายวงกลมจากปุ่ม */}
+            <button
+              type="button"
+              onClick={handleThemeToggle}
+              className="theme-toggle-btn"
+              aria-label={
+                isDark
+                  ? "สลับเป็นโหมดสว่าง (Light Mode)"
+                  : "สลับเป็นโหมดมืด (Dark Mode)"
+              }
+              title={
+                isDark
+                  ? "โหมดมืด (คลิกเพื่อสลับเป็นโหมดสว่าง)"
+                  : "โหมดสว่าง (คลิกเพื่อสลับเป็นโหมดมืด)"
+              }
+              style={{
+                position: "relative",
+                width: "38px",
+                height: "38px",
+                borderRadius: "50%",
+                border: isDark
+                  ? "1px solid rgba(147, 197, 253, 0.35)"
+                  : "1px solid rgba(15, 23, 42, 0.14)",
+                backgroundColor: isDark
+                  ? "rgba(30, 41, 59, 0.78)"
+                  : "rgba(255, 255, 255, 0.72)",
+                color: isDark ? "#fde047" : "#f59e0b",
+                cursor: "pointer",
+                display: "inline-flex",
+                alignItems: "center",
+                justifyContent: "center",
+                padding: 0,
+                marginLeft: "0.2rem",
+                overflow: "hidden",
+                contain: "layout style paint",
+                willChange: "transform",
+                boxShadow: isDark
+                  ? "0 2px 10px rgba(59, 130, 246, 0.25), inset 0 0 8px rgba(96, 165, 250, 0.18)"
+                  : "0 2px 8px rgba(245, 158, 11, 0.18), inset 0 0 6px rgba(255, 255, 255, 0.8)",
+                transition:
+                  "transform 0.22s cubic-bezier(0.34, 1.56, 0.64, 1)",
+              }}
+            >
+              {/* ไอคอนพระอาทิตย์ (Light Mode) */}
+              <svg
+                viewBox="0 0 24 24"
+                width="20"
+                height="20"
+                fill="none"
+                stroke="#f59e0b"
+                strokeWidth="2.1"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                style={{
+                  position: "absolute",
+                  willChange: "transform, opacity",
+                  transition:
+                    "transform 0.45s cubic-bezier(0.34, 1.56, 0.64, 1), opacity 0.28s ease",
+                  transform: isDark
+                    ? "rotate(110deg) scale(0)"
+                    : "rotate(0deg) scale(1)",
+                  opacity: isDark ? 0 : 1,
+                }}
+              >
+                <circle cx="12" cy="12" r="4.5" fill="rgba(251, 191, 36, 0.28)" />
+                <line x1="12" y1="2" x2="12" y2="4.2" />
+                <line x1="12" y1="19.8" x2="12" y2="22" />
+                <line x1="4.93" y1="4.93" x2="6.48" y2="6.48" />
+                <line x1="17.52" y1="17.52" x2="19.07" y2="19.07" />
+                <line x1="2" y1="12" x2="4.2" y2="12" />
+                <line x1="19.8" y1="12" x2="22" y2="12" />
+                <line x1="4.93" y1="19.07" x2="6.48" y2="17.52" />
+                <line x1="17.52" y1="6.48" x2="19.07" y2="4.93" />
+              </svg>
+
+              {/* ไอคอนพระจันทร์เสี้ยวและดวงดาว (Dark Mode) */}
+              <svg
+                viewBox="0 0 24 24"
+                width="19"
+                height="19"
+                fill="rgba(96, 165, 250, 0.32)"
+                stroke="#93c5fd"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                style={{
+                  position: "absolute",
+                  willChange: "transform, opacity",
+                  transition:
+                    "transform 0.45s cubic-bezier(0.34, 1.56, 0.64, 1), opacity 0.28s ease",
+                  transform: isDark
+                    ? "rotate(0deg) scale(1)"
+                    : "rotate(-110deg) scale(0)",
+                  opacity: isDark ? 1 : 0,
+                }}
+              >
+                <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z" />
+                <circle cx="18.5" cy="5.5" r="0.9" fill="#fde047" stroke="none" />
+                <circle cx="15" cy="3.5" r="0.65" fill="#bae6fd" stroke="none" />
+              </svg>
+            </button>
+
             {user ? (
               <button
                 onClick={handleLogout}
+                className="btn-interactive"
                 style={{
-                  border: 'none',
-                  cursor: 'pointer',
-                  color: '#ffffff',
-                  backgroundColor: '#ef4444',
-                  padding: '0.5rem 1.2rem',
-                  borderRadius: '9999px',
-                  fontSize: '0.9rem',
-                  fontWeight: 'bold',
-                  marginLeft: '0.5rem',
-                  boxShadow: '0 4px 14px rgba(239, 68, 68, 0.3)',
-                  transition: 'background-color 0.2s',
+                  border: "none",
+                  cursor: "pointer",
+                  color: "#ffffff",
+                  backgroundColor: "#ef4444",
+                  padding: "0.48rem 1.1rem",
+                  borderRadius: "9999px",
+                  fontSize: "0.88rem",
+                  fontWeight: "bold",
+                  marginLeft: "0.25rem",
+                  boxShadow: "0 4px 12px rgba(239, 68, 68, 0.28)",
                 }}
               >
                 ออกจากระบบ
@@ -797,16 +932,17 @@ function Navbar() {
             ) : (
               <NavLink
                 to="/login"
+                className="btn-interactive"
                 style={{
-                  textDecoration: 'none',
-                  color: '#0f172a',
-                  backgroundColor: '#ffffff',
-                  padding: '0.5rem 1.2rem',
-                  borderRadius: '9999px',
-                  fontSize: '0.9rem',
-                  fontWeight: 'bold',
-                  marginLeft: '0.5rem',
-                  boxShadow: '0 4px 14px rgba(0, 0, 0, 0.2)',
+                  textDecoration: "none",
+                  color: "#ffffff",
+                  backgroundColor: "#2563eb",
+                  padding: "0.48rem 1.1rem",
+                  borderRadius: "9999px",
+                  fontSize: "0.88rem",
+                  fontWeight: "bold",
+                  marginLeft: "0.25rem",
+                  boxShadow: "0 4px 12px rgba(37, 99, 235, 0.28)",
                 }}
               >
                 เข้าสู่ระบบ

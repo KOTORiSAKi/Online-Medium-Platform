@@ -245,7 +245,7 @@ function ProductManager() {
   }
 
   return (
-    <div style={{ padding: "2rem", maxWidth: "1000px", margin: "0 auto", color: "#1e293b" }}>
+    <div className="page-enter" style={{ padding: "2rem", maxWidth: "1000px", margin: "0 auto", color: "#1e293b" }}>
 
       {/* ส่วนหัวแสดงข้อมูลร้านค้า */}
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "1.5rem", flexWrap: "wrap", gap: "1rem" }}>
@@ -266,6 +266,7 @@ function ProductManager() {
 
         <div style={{ display: "flex", gap: "0.5rem" }}>
           <button
+            className="btn-interactive"
             onClick={handleOpenEditStore}
             style={{
               padding: "0.65rem 1rem",
@@ -280,6 +281,7 @@ function ProductManager() {
             ✏️ แก้ไขชื่อ/ที่ตั้งร้าน
           </button>
           <button
+            className="btn-interactive"
             onClick={handleOpenAddModal}
             style={{
               padding: "0.65rem 1.25rem",
@@ -302,6 +304,7 @@ function ProductManager() {
         <div style={{ padding: "3rem", textAlign: "center", backgroundColor: "#ffffff", borderRadius: "12px", border: "1px dashed #cbd5e1" }}>
           <p style={{ color: "#64748b", fontSize: "1.1rem" }}>ร้านนี้ยังไม่มีสินค้าวางจำหน่าย</p>
           <button
+            className="btn-interactive"
             onClick={handleOpenAddModal}
             style={{ padding: "0.5rem 1.2rem", backgroundColor: "#059669", color: "white", border: "none", borderRadius: "6px", cursor: "pointer", fontWeight: "bold" }}
           >
@@ -310,25 +313,29 @@ function ProductManager() {
         </div>
       ) : (
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(290px, 1fr))", gap: "1.5rem" }}>
-          {products.map((item) => (
+          {products.map((item, idx) => (
             <div
               key={item.PRODUCT_ID}
+              className="product-card stagger-item"
               style={{
+                "--stagger-index": idx,
                 backgroundColor: "#ffffff",
-                borderRadius: "12px",
+                borderRadius: "14px",
                 border: "1px solid #e2e8f0",
                 overflow: "hidden",
-                boxShadow: "0 2px 4px rgba(0,0,0,0.04)",
                 display: "flex",
                 flexDirection: "column",
                 position: "relative"
               }}
             >
-              <img
-                src={item.IMAGE_URL || `https://placehold.co/300x180?text=${encodeURIComponent(item.PRODUCT_NAME)}`}
-                alt={item.PRODUCT_NAME}
-                style={{ width: "100%", height: "160px", objectFit: "cover" }}
-              />
+              <div className="product-card-img-wrap" style={{ height: "160px" }}>
+                <img
+                  className="product-card-img"
+                  src={item.IMAGE_URL || `https://placehold.co/300x180?text=${encodeURIComponent(item.PRODUCT_NAME)}`}
+                  alt={item.PRODUCT_NAME}
+                  style={{ width: "100%", height: "160px", objectFit: "cover", display: "block" }}
+                />
+              </div>
 
               <div style={{ padding: "1rem", flex: 1, display: "flex", flexDirection: "column" }}>
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", fontSize: "0.8rem", color: "#64748b" }}>
@@ -353,6 +360,7 @@ function ProductManager() {
 
                   <div style={{ display: "flex", gap: "0.5rem" }}>
                     <button
+                      className="btn-interactive"
                       onClick={() => handleOpenEditModal(item)}
                       style={{
                         flex: 1,
@@ -369,6 +377,7 @@ function ProductManager() {
                       ✏️ แก้ไข
                     </button>
                     <button
+                      className="btn-interactive"
                       onClick={() => handleDeleteProduct(item.PRODUCT_ID, item.PRODUCT_NAME)}
                       style={{
                         padding: "0.45rem 0.8rem",
@@ -393,29 +402,36 @@ function ProductManager() {
 
       {/* Modal เพิ่ม/แก้ไขสินค้า */}
       {isModalOpen && (
-        <div style={{
-          position: "fixed",
-          top: 0,
-          left: 0,
-          right: 0,
-          bottom: 0,
-          backgroundColor: "rgba(0, 0, 0, 0.5)",
-          display: "flex",
-          justifyContent: "center",
-          alignItems: "center",
-          zIndex: 1000,
-          padding: "1rem"
-        }}>
-          <div style={{
-            backgroundColor: "#ffffff",
-            padding: "2rem",
-            borderRadius: "16px",
-            width: "100%",
-            maxWidth: "560px",
-            maxHeight: "90vh",
-            overflowY: "auto",
-            boxShadow: "0 20px 25px -5px rgba(0, 0, 0, 0.2)"
-          }}>
+        <div
+          className="modal-backdrop"
+          style={{
+            position: "fixed",
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            backgroundColor: "rgba(15, 23, 42, 0.45)",
+            backdropFilter: "blur(6px)",
+            display: "flex",
+            justifyContent: "center",
+            alignItems: "center",
+            zIndex: 1000,
+            padding: "1rem"
+          }}
+        >
+          <div
+            className="modal-content"
+            style={{
+              backgroundColor: "#ffffff",
+              padding: "2rem",
+              borderRadius: "16px",
+              width: "100%",
+              maxWidth: "560px",
+              maxHeight: "90vh",
+              overflowY: "auto",
+              boxShadow: "0 20px 25px -5px rgba(0, 0, 0, 0.2)"
+            }}
+          >
             <h2 style={{ margin: "0 0 1rem 0", fontSize: "1.3rem" }}>
               {isEditing ? "✏️ แก้ไขข้อมูลสินค้า" : "➕ เพิ่มสินค้าใหม่ในร้าน"}
             </h2>
@@ -424,6 +440,7 @@ function ProductManager() {
               <div>
                 <label style={{ fontSize: "0.85rem", fontWeight: "bold" }}>ชื่อสินค้า (PRODUCT_NAME) *:</label>
                 <input
+                  className="form-input"
                   type="text"
                   required
                   placeholder="เช่น ชานมไข่มุกพรีเมียม"
@@ -437,6 +454,7 @@ function ProductManager() {
                 <div>
                   <label style={{ fontSize: "0.85rem", fontWeight: "bold" }}>หมวดหมู่ (TYPE):</label>
                   <input
+                    className="form-input"
                     type="text"
                     placeholder="เช่น อาหาร, เครื่องดื่ม, เสื้อผ้า"
                     value={form.type}
@@ -447,6 +465,7 @@ function ProductManager() {
                 <div>
                   <label style={{ fontSize: "0.85rem", fontWeight: "bold" }}>ราคา (บาท) *:</label>
                   <input
+                    className="form-input"
                     type="number"
                     step="0.01"
                     required
@@ -462,6 +481,7 @@ function ProductManager() {
                 <div>
                   <label style={{ fontSize: "0.85rem", fontWeight: "bold" }}>สต็อก (STOCK) *:</label>
                   <input
+                    className="form-input"
                     type="number"
                     required
                     placeholder="เช่น 20"
@@ -473,6 +493,7 @@ function ProductManager() {
                 <div>
                   <label style={{ fontSize: "0.85rem", fontWeight: "bold" }}>น้ำหนัก (WEIGHT):</label>
                   <input
+                    className="form-input"
                     type="number"
                     step="0.01"
                     placeholder="kg"
@@ -485,21 +506,22 @@ function ProductManager() {
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: "0.75rem" }}>
                 <div>
                   <label style={{ fontSize: "0.85rem", fontWeight: "bold" }}>กว้าง (ซม.):</label>
-                  <input type="number" step="0.01" placeholder="cm" value={form.width} onChange={(e) => setForm({ ...form, width: e.target.value })} style={{ width: "100%", padding: "0.55rem", marginTop: "0.2rem", borderRadius: "6px", border: "1px solid #cbd5e1", boxSizing: "border-box" }} />
+                  <input className="form-input" type="number" step="0.01" placeholder="cm" value={form.width} onChange={(e) => setForm({ ...form, width: e.target.value })} style={{ width: "100%", padding: "0.55rem", marginTop: "0.2rem", borderRadius: "6px", border: "1px solid #cbd5e1", boxSizing: "border-box" }} />
                 </div>
                 <div>
                   <label style={{ fontSize: "0.85rem", fontWeight: "bold" }}>ยาว (ซม.):</label>
-                  <input type="number" step="0.01" placeholder="cm" value={form.length} onChange={(e) => setForm({ ...form, length: e.target.value })} style={{ width: "100%", padding: "0.55rem", marginTop: "0.2rem", borderRadius: "6px", border: "1px solid #cbd5e1", boxSizing: "border-box" }} />
+                  <input className="form-input" type="number" step="0.01" placeholder="cm" value={form.length} onChange={(e) => setForm({ ...form, length: e.target.value })} style={{ width: "100%", padding: "0.55rem", marginTop: "0.2rem", borderRadius: "6px", border: "1px solid #cbd5e1", boxSizing: "border-box" }} />
                 </div>
                 <div>
                   <label style={{ fontSize: "0.85rem", fontWeight: "bold" }}>สูง (ซม.):</label>
-                  <input type="number" step="0.01" placeholder="cm" value={form.height} onChange={(e) => setForm({ ...form, height: e.target.value })} style={{ width: "100%", padding: "0.55rem", marginTop: "0.2rem", borderRadius: "6px", border: "1px solid #cbd5e1", boxSizing: "border-box" }} />
+                  <input className="form-input" type="number" step="0.01" placeholder="cm" value={form.height} onChange={(e) => setForm({ ...form, height: e.target.value })} style={{ width: "100%", padding: "0.55rem", marginTop: "0.2rem", borderRadius: "6px", border: "1px solid #cbd5e1", boxSizing: "border-box" }} />
                 </div>
               </div>
 
               <div>
                 <label style={{ fontSize: "0.85rem", fontWeight: "bold" }}>ลิงก์รูปภาพ (IMAGE_URL):</label>
                 <input
+                  className="form-input"
                   type="url"
                   placeholder="https://example.com/image.jpg"
                   value={form.imageUrl}
@@ -511,6 +533,7 @@ function ProductManager() {
               <div>
                 <label style={{ fontSize: "0.85rem", fontWeight: "bold" }}>รายละเอียดสินค้า (DESCRIPTION):</label>
                 <textarea
+                  className="form-input"
                   rows="3"
                   placeholder="อธิบายจุดเด่น ส่วนผสม หรือรายละเอียดของสินค้า..."
                   value={form.description}
@@ -521,6 +544,7 @@ function ProductManager() {
 
               <div style={{ display: "flex", justifyContent: "flex-end", gap: "0.75rem", marginTop: "1rem" }}>
                 <button
+                  className="btn-interactive"
                   type="button"
                   onClick={() => setIsModalOpen(false)}
                   style={{ padding: "0.6rem 1.2rem", backgroundColor: "#f1f5f9", border: "1px solid #cbd5e1", borderRadius: "6px", cursor: "pointer" }}
@@ -528,6 +552,7 @@ function ProductManager() {
                   ยกเลิก
                 </button>
                 <button
+                  className="btn-interactive"
                   type="submit"
                   style={{ padding: "0.6rem 1.5rem", backgroundColor: "#2563eb", color: "white", border: "none", borderRadius: "6px", cursor: "pointer", fontWeight: "bold" }}
                 >
@@ -543,27 +568,34 @@ function ProductManager() {
       {/* Modal: แก้ไขข้อมูลร้านค้า (ST_NAME, LOCATION) */}
       {/* ==================================================== */}
       {isStoreModalOpen && (
-        <div style={{
-          position: "fixed",
-          top: 0,
-          left: 0,
-          right: 0,
-          bottom: 0,
-          backgroundColor: "rgba(0, 0, 0, 0.5)",
-          display: "flex",
-          justifyContent: "center",
-          alignItems: "center",
-          zIndex: 1000,
-          padding: "1rem"
-        }}>
-          <div style={{
-            backgroundColor: "#ffffff",
-            padding: "2rem",
-            borderRadius: "16px",
-            width: "100%",
-            maxWidth: "460px",
-            boxShadow: "0 20px 25px -5px rgba(0, 0, 0, 0.2)"
-          }}>
+        <div
+          className="modal-backdrop"
+          style={{
+            position: "fixed",
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            backgroundColor: "rgba(15, 23, 42, 0.45)",
+            backdropFilter: "blur(6px)",
+            display: "flex",
+            justifyContent: "center",
+            alignItems: "center",
+            zIndex: 1000,
+            padding: "1rem"
+          }}
+        >
+          <div
+            className="modal-content"
+            style={{
+              backgroundColor: "#ffffff",
+              padding: "2rem",
+              borderRadius: "16px",
+              width: "100%",
+              maxWidth: "460px",
+              boxShadow: "0 20px 25px -5px rgba(0, 0, 0, 0.2)"
+            }}
+          >
             <h3 style={{ margin: "0 0 0.5rem 0", fontSize: "1.25rem" }}>✏️ แก้ไขข้อมูลร้านค้า #{stId}</h3>
             <p style={{ color: "#64748b", fontSize: "0.85rem", margin: "0 0 1.25rem 0" }}>
               แก้ไขชื่อร้านค้าและสถานที่ตั้งสำหรับร้านนี้
@@ -575,6 +607,7 @@ function ProductManager() {
                   ชื่อร้านค้า (ST_NAME):
                 </label>
                 <input
+                  className="form-input"
                   type="text"
                   required
                   value={storeForm.stName}
@@ -588,6 +621,7 @@ function ProductManager() {
                   สถานที่ตั้ง (ที่อยู่):
                 </label>
                 <select
+                  className="form-input"
                   required
                   value={storeForm.addressId}
                   onChange={(e) => setStoreForm({ ...storeForm, addressId: e.target.value })}
@@ -605,6 +639,7 @@ function ProductManager() {
 
               <div style={{ display: "flex", justifyContent: "flex-end", gap: "0.5rem", marginTop: "1rem" }}>
                 <button
+                  className="btn-interactive"
                   type="button"
                   onClick={() => setIsStoreModalOpen(false)}
                   style={{ padding: "0.5rem 1rem", backgroundColor: "#f1f5f9", border: "1px solid #cbd5e1", borderRadius: "6px", cursor: "pointer" }}
@@ -612,6 +647,7 @@ function ProductManager() {
                   ยกเลิก
                 </button>
                 <button
+                  className="btn-interactive"
                   type="submit"
                   style={{ padding: "0.5rem 1.4rem", backgroundColor: "#2563eb", color: "white", border: "none", borderRadius: "6px", cursor: "pointer", fontWeight: "bold" }}
                 >

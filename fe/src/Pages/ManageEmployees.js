@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { usePopup } from "../context/PopupContext";
 
@@ -11,7 +11,19 @@ function ManageEmployees() {
 
   // Pagination state
   const [currentPage, setCurrentPage] = useState(1);
-  const itemsPerPage = 8; // Show 8 items per page
+  const itemsPerPage = 8;
+
+  const fetchData = useCallback(async () => {
+    try {
+      const res = await fetch("http://localhost:5000/api/admin/users-and-stores");
+      if (res.ok) {
+        const data = await res.json();
+        setUsers(data.users || []);
+      }
+    } catch (err) {
+      showAlert("ไม่สามารถดึงข้อมูลได้");
+    }
+  }, [showAlert]);
 
   useEffect(() => {
     const userStr = localStorage.getItem("user");
@@ -26,32 +38,20 @@ function ManageEmployees() {
     }
     setCurrentUser(parsedUser);
     fetchData();
-  }, [navigate]);
+  }, [navigate, fetchData]);
 
   useEffect(() => {
-    // Reset to page 1 when search text changes
     setCurrentPage(1);
   }, [searchText]);
 
-  const fetchData = async () => {
-    try {
-      const res = await fetch("http://localhost:5000/api/admin/users-and-stores");
-      if (res.ok) {
-        const data = await res.json();
-        setUsers(data.users || []);
-      }
-    } catch (err) {
-      showAlert("ไม่สามารถดึงข้อมูลได้");
-    }
-  };
-
   const handleChangeRole = async (acId, newRole) => {
-    const confirmed = await showConfirm(`ยืนยันการเปลี่ยนบทบาทเป็น ${newRole} ใช่หรือไม่?`);
+    const confirmed = await showConfirm(
+      `ยืนยันการเปลี่ยนบทบาทเป็น ${newRole} ใช่หรือไม่?`,
+    );
     if (!confirmed) return;
 
     try {
-      // Find current user data to retain existing info, only change TYPE
-      const u = users.find(x => x.AC_ID === acId);
+      const u = users.find((x) => x.AC_ID === acId);
       if (!u) return;
 
       const payload = {
@@ -61,7 +61,7 @@ function ManageEmployees() {
         email: u.EMAIL,
         phone: u.PHONE,
         gender: u.GENDER,
-        username: u.USERNAME
+        username: u.USERNAME,
       };
 
       const res = await fetch(`http://localhost:5000/api/admin/users/${acId}`, {
@@ -85,7 +85,6 @@ function ManageEmployees() {
 
   const lowerSearch = searchText.toLowerCase();
   const filteredUsers = users.filter((u) => {
-    // Admin shouldn't change other Admins' roles (or even their own) in this simplified screen
     if (u.TYPE === "Admin") return false;
 
     const matchName =
@@ -106,59 +105,141 @@ function ManageEmployees() {
   const paginatedUsers = filteredUsers.slice(startIndex, endIndex);
 
   const handlePageChange = (newPage) => {
-    if (newPage < 1 || newPage > totalPages || newPage === safeCurrentPage) return;
+    if (
+      newPage < 1 ||
+      newPage > totalPages ||
+      newPage === safeCurrentPage
+    )
+      return;
     setCurrentPage(newPage);
     window.scrollTo({ top: 0, behavior: "smooth" });
   };
 
   return (
-    <div style={{ maxWidth: "800px", margin: "6rem auto", padding: "1rem" }}>
-      <h2>👔 จัดการข้อมูลพนักงาน (Employee Management)</h2>
+    <div
+      className="page-enter"
+      style={{ maxWidth: "840px", margin: "1.5rem auto", padding: "1.5rem" }}
+    >
+      <h2 style={{ marginTop: 0, color: "#0f172a" }}>
+        👔 จัดการข้อมูลพนักงาน (Employee Management)
+      </h2>
 
       <input
+        className="form-input"
         type="text"
         placeholder="🔍 ค้นหาชื่อ, นามสกุล หรือ Username..."
         value={searchText}
         onChange={(e) => setSearchText(e.target.value)}
         style={{
-          width: "100%", padding: "0.8rem", borderRadius: "8px",
-          border: "1px solid #cbd5e1", marginBottom: "1.5rem", boxSizing: "border-box"
+          width: "100%",
+          padding: "0.85rem 1rem",
+          borderRadius: "12px",
+          border: "1px solid #cbd5e1",
+          marginBottom: "1.5rem",
+          boxSizing: "border-box",
+          fontSize: "0.95rem",
+          boxShadow: "var(--shadow-sm)",
         }}
       />
 
       <div style={{ display: "flex", flexDirection: "column", gap: "1rem" }}>
-        {paginatedUsers.map((u) => (
-          <div key={u.AC_ID} style={{
-            background: "#fff", padding: "1rem 1.5rem", borderRadius: "12px",
-            boxShadow: "0 4px 6px -1px rgba(0,0,0,0.1)", display: "flex", alignItems: "center", justifyContent: "space-between"
-          }}>
+        {paginatedUsers.map((u, idx) => (
+          <div
+            key={u.AC_ID}
+            className="stagger-item"
+            style={{
+              "--stagger-index": idx,
+              background: "#fff",
+              padding: "1.1rem 1.5rem",
+              borderRadius: "14px",
+              border: "1px solid #e2e8f0",
+              boxShadow: "var(--shadow-sm)",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "space-between",
+              flexWrap: "wrap",
+              gap: "1rem",
+            }}
+          >
             <div>
-              <strong style={{ fontSize: "1.1rem" }}>{u.FNAME} {u.LNAME}</strong>
-              <div style={{ color: "#64748b", fontSize: "0.9rem", marginTop: "0.2rem" }}>
-                @{u.USERNAME} | {u.EMAIL} | บทบาทปัจจุบัน: <span style={{ color: u.TYPE === "Employee" ? "#059669" : "#2563eb", fontWeight: "bold" }}>{u.TYPE}</span>
+              <strong style={{ fontSize: "1.1rem", color: "#0f172a" }}>
+                {u.FNAME} {u.LNAME}
+              </strong>
+              <div
+                style={{
+                  color: "#64748b",
+                  fontSize: "0.9rem",
+                  marginTop: "0.25rem",
+                }}
+              >
+                @{u.USERNAME} | {u.EMAIL} | บทบาทปัจจุบัน:{" "}
+                <span
+                  style={{
+                    color: u.TYPE === "Employee" ? "#059669" : "#2563eb",
+                    fontWeight: "bold",
+                  }}
+                >
+                  {u.TYPE}
+                </span>
               </div>
             </div>
 
             <div>
               {u.TYPE !== "Employee" ? (
                 <button
+                  className="btn-interactive"
                   onClick={() => handleChangeRole(u.AC_ID, "Employee")}
-                  style={{ padding: "0.5rem 1rem", background: "#059669", color: "#fff", border: "none", borderRadius: "6px", cursor: "pointer", fontWeight: "bold" }}
+                  style={{
+                    padding: "0.55rem 1.1rem",
+                    background: "#059669",
+                    color: "#fff",
+                    border: "none",
+                    borderRadius: "8px",
+                    cursor: "pointer",
+                    fontWeight: "bold",
+                  }}
                 >
-                  เลื่อนขั้นเป็น Employee
+                  ⬆️ เลื่อนขั้นเป็น Employee
                 </button>
               ) : (
-                <div style={{ display: "flex", gap: "0.5rem", alignItems: "center" }}>
-                  <span style={{ fontSize: "0.85rem", color: "#ef4444" }}>ปลดจากพนักงาน:</span>
+                <div
+                  style={{
+                    display: "flex",
+                    gap: "0.5rem",
+                    alignItems: "center",
+                    flexWrap: "wrap",
+                  }}
+                >
+                  <span style={{ fontSize: "0.85rem", color: "#ef4444" }}>
+                    ปลดจากพนักงาน:
+                  </span>
                   <button
+                    className="btn-interactive"
                     onClick={() => handleChangeRole(u.AC_ID, "Customer")}
-                    style={{ padding: "0.4rem 0.8rem", background: "#f87171", color: "#fff", border: "none", borderRadius: "6px", cursor: "pointer" }}
+                    style={{
+                      padding: "0.45rem 0.85rem",
+                      background: "#ef4444",
+                      color: "#fff",
+                      border: "none",
+                      borderRadius: "8px",
+                      cursor: "pointer",
+                      fontWeight: "600",
+                    }}
                   >
                     เป็น Customer
                   </button>
                   <button
+                    className="btn-interactive"
                     onClick={() => handleChangeRole(u.AC_ID, "Seller")}
-                    style={{ padding: "0.4rem 0.8rem", background: "#fb923c", color: "#fff", border: "none", borderRadius: "6px", cursor: "pointer" }}
+                    style={{
+                      padding: "0.45rem 0.85rem",
+                      background: "#f97316",
+                      color: "#fff",
+                      border: "none",
+                      borderRadius: "8px",
+                      cursor: "pointer",
+                      fontWeight: "600",
+                    }}
                   >
                     เป็น Seller
                   </button>
@@ -171,15 +252,26 @@ function ManageEmployees() {
 
       {/* Pagination Controls */}
       {totalPages > 1 && (
-        <div style={{ display: "flex", justifyContent: "center", alignItems: "center", gap: "1rem", marginTop: "2rem" }}>
+        <div
+          style={{
+            display: "flex",
+            justifyContent: "center",
+            alignItems: "center",
+            gap: "1rem",
+            marginTop: "2rem",
+          }}
+        >
           <button
+            className="btn-interactive"
             onClick={() => handlePageChange(safeCurrentPage - 1)}
             disabled={safeCurrentPage <= 1}
             style={{
-              padding: "0.6rem 1.2rem", borderRadius: "8px", border: "1px solid #cbd5e1",
+              padding: "0.6rem 1.2rem",
+              borderRadius: "8px",
+              border: "1px solid #cbd5e1",
               background: safeCurrentPage <= 1 ? "#f8fafc" : "#fff",
               color: safeCurrentPage <= 1 ? "#94a3b8" : "#0f172a",
-              cursor: safeCurrentPage <= 1 ? "not-allowed" : "pointer"
+              cursor: safeCurrentPage <= 1 ? "not-allowed" : "pointer",
             }}
           >
             ก่อนหน้า
@@ -190,20 +282,22 @@ function ManageEmployees() {
           </span>
 
           <button
+            className="btn-interactive"
             onClick={() => handlePageChange(safeCurrentPage + 1)}
             disabled={safeCurrentPage >= totalPages}
             style={{
-              padding: "0.6rem 1.2rem", borderRadius: "8px", border: "1px solid #cbd5e1",
+              padding: "0.6rem 1.2rem",
+              borderRadius: "8px",
+              border: "1px solid #cbd5e1",
               background: safeCurrentPage >= totalPages ? "#f8fafc" : "#fff",
               color: safeCurrentPage >= totalPages ? "#94a3b8" : "#0f172a",
-              cursor: safeCurrentPage >= totalPages ? "not-allowed" : "pointer"
+              cursor: safeCurrentPage >= totalPages ? "not-allowed" : "pointer",
             }}
           >
             ถัดไป
           </button>
         </div>
       )}
-
     </div>
   );
 }

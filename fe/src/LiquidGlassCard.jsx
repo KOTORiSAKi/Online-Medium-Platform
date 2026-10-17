@@ -1,295 +1,348 @@
-import React, { useEffect, useRef } from "react";
+import React, { useEffect, useRef, useState, useId } from "react";
+import { useTheme } from "./context/ThemeContext";
 
-const fsSource = `
-  precision mediump float;
-  
-  uniform vec3 iResolution;
-  uniform vec4 iMouse;
-  uniform vec2 iMouseVelocity;
-  uniform sampler2D iChannel0;
-  
-  uniform vec2 u_screen; 
-  uniform vec2 u_offset; 
-  uniform vec2 u_imageRes; 
-  uniform vec2 u_cardSize;
-  uniform float u_borderRadius;
-  uniform float u_progress;
-  uniform float u_time;
-  uniform float u_fillAxis;
-
-  void mainImage(out vec4 fragColor, in vec2 fragCoord)
-  {
-    vec2 screenUV = (fragCoord + u_offset) / u_screen;
-    float screenRatio = u_screen.x / u_screen.y;
-    float imageRatio = u_imageRes.x / u_imageRes.y;
-    
-    vec2 bgUV = screenUV;
-    if (screenRatio > imageRatio) {
-      float scale = screenRatio / imageRatio;
-      bgUV.y = (bgUV.y - 0.5) / scale + 0.5;
-    } else {
-      float scale = imageRatio / screenRatio;
-      bgUV.x = (bgUV.x - 0.5) / scale + 0.5;
+// แปลงสี Hex (#3b82f6) หรือ Array [r, g, b] ให้เป็น Normalized RGB [0..1]
+function parseNormalizedColor(input, fallback = [0.1, 0.5, 1.0]) {
+  if (Array.isArray(input) && input.length === 3) {
+    return input.map((v) => (v > 1 ? v / 255 : v));
+  }
+  if (typeof input === "string") {
+    const hex = input.trim().replace("#", "");
+    if (hex.length === 3) {
+      const r = parseInt(hex[0] + hex[0], 16) / 255;
+      const g = parseInt(hex[1] + hex[1], 16) / 255;
+      const b = parseInt(hex[2] + hex[2], 16) / 255;
+      if (!Number.isNaN(r) && !Number.isNaN(g) && !Number.isNaN(b)) {
+        return [r, g, b];
+      }
+    } else if (hex.length === 6) {
+      const r = parseInt(hex.slice(0, 2), 16) / 255;
+      const g = parseInt(hex.slice(2, 4), 16) / 255;
+      const b = parseInt(hex.slice(4, 6), 16) / 255;
+      if (!Number.isNaN(r) && !Number.isNaN(g) && !Number.isNaN(b)) {
+        return [r, g, b];
+      }
     }
+  }
+  return fallback;
+}
 
-    vec2 localUV = fragCoord / u_cardSize;
-    vec2 mouseUV = iMouse.xy / u_cardSize;
+/**
+ * สร้างแผนที่การหักเหแสง (Displacement Map) ด้วยสมการเดียวกับ Fragment Shader เดิม:
+ * - Red Channel (R)   = การหักเหแกน X (128 = ไม่หักเห)
+ * - Green Channel (G) = การหักเหแกน Y (128 = ไม่หักเห)
+ */
+function buildDisplacementDataUrl({
+  dispCanvas,
+  width,
+  height,
+  borderRadius,
+  bevelRatio,
+  mouseX,
+  mouseY,
+  mousePresence,
+}) {
+  if (!width || !height) return "";
 
-    float maxRadius = min(u_cardSize.x, u_cardSize.y) * 0.5;
-    float safeRadius = min(u_borderRadius, maxRadius);
+  const scale = Math.min(0.4, 220 / Math.max(width, height, 1));
+  const cw = Math.max(32, Math.round(width * scale));
+  const ch = Math.max(20, Math.round(height * scale));
 
-    vec2 halfSize = u_cardSize * 0.5;
-    vec2 p = fragCoord - halfSize;
-    vec2 d = abs(p) - halfSize + vec2(safeRadius);  
-    
-    float dist = (length(max(d, 0.0)) + min(max(d.x, d.y), 0.0) - safeRadius);
-    float innerDist = -dist;
+  if (dispCanvas.width !== cw || dispCanvas.height !== ch) {
+    dispCanvas.width = cw;
+    dispCanvas.height = ch;
+  }
 
-    float speed = length(iMouseVelocity);
-    vec2 dir = speed > 0.0001 ? normalize(iMouseVelocity) : vec2(0.0);
-    vec2 toMouse = localUV - mouseUV;
-    toMouse.x *= u_cardSize.x / u_cardSize.y; 
-    
-    vec2 stretch = 1.0 + abs(dir) * (speed / length(u_screen)) * 15.0;
-    float warpedDist = length(toMouse / stretch);
-    float bulge = exp(-warpedDist * 8.0); 
-    vec2 mouseDistortion = toMouse * bulge * 0.05; 
+  const ctx = dispCanvas.getContext("2d");
+  const imgData = ctx.createImageData(cw, ch);
+  const data = imgData.data;
 
-    float bevelDepth = min(u_cardSize.x, u_cardSize.y) * 0.15; 
-    float edgePull = (1.0 - smoothstep(0.0, bevelDepth, innerDist)) * 0.04;
-    vec2 centerDir = normalize(p);
-    vec2 edgeDistortion = centerDir * edgePull;
-    float distToEdge = smoothstep(0.0, 0.05, -dist);
-    vec2 finalDistortion = (mouseDistortion + edgeDistortion) * distToEdge;
+  const cx = width * 0.5;
+  const cy = height * 0.5;
+  const r = Math.min(borderRadius, cx, cy);
+  const bevelWidth = Math.max(1, Math.min(cx, cy) * bevelRatio);
 
-    vec2 sampleUV = bgUV - finalDistortion;
+  const mx = mouseX * width;
+  const my = (1.0 - mouseY) * height;
+  const dentRadius = 150.0;
 
-    const float SAMPLE_RANGE = 2.0;
-    const float SAMPLE_OFFSET = 1.5;
-    vec4 blurredColor = vec4(0.0);
-    float total = 0.0;
-    vec2 pixelSize = 1.0 / u_screen;
-    
-    for (float x = -SAMPLE_RANGE; x <= SAMPLE_RANGE; x++) {
-      for (float y = -SAMPLE_RANGE; y <= SAMPLE_RANGE; y++) {
-        vec2 offset = vec2(x, y) * SAMPLE_OFFSET * pixelSize;
-        vec2 samplePos = sampleUV + offset;
-        
-        if(samplePos.x > 0.0 && samplePos.x < 1.0 && samplePos.y > 0.0 && samplePos.y < 1.0) {
-            blurredColor += texture2D(iChannel0, samplePos);
-            total += 1.0;
+  let idx = 0;
+  for (let y = 0; y < ch; y++) {
+    const py = ((y + 0.5) / ch) * height;
+    const dy = py - cy;
+    const qy = Math.abs(dy) - (cy - r);
+
+    for (let x = 0; x < cw; x++) {
+      const px = ((x + 0.5) / cw) * width;
+      const dx = px - cx;
+      const qx = Math.abs(dx) - (cx - r);
+
+      // 1. Signed Distance Function (sdRoundedBox)
+      const maxQx = Math.max(qx, 0);
+      const maxQy = Math.max(qy, 0);
+      const dist =
+        Math.hypot(maxQx, maxQy) + Math.min(Math.max(qx, qy), 0) - r;
+
+      // 2. ขอบโค้ง Bevel (curve = pow(edgeFactor, 2.5))
+      const edgeFactor = Math.max(0, Math.min(1, 1 + dist / bevelWidth));
+      const curve = Math.pow(edgeFactor, 2.5);
+
+      const centerLen = Math.hypot(dx, dy) || 0.0001;
+      const edgeNormalX = (dx / centerLen) * curve;
+      const edgeNormalY = (dy / centerLen) * curve;
+
+      // 3. เลนส์บุ๋มตามตำแหน่งเมาส์ (Mouse Dent)
+      let mouseNormalX = 0;
+      let mouseNormalY = 0;
+      if (mousePresence > 0.001) {
+        const toMouseX = px - mx;
+        const toMouseY = py - my;
+        const mouseDist = Math.hypot(toMouseX, toMouseY);
+        if (mouseDist < dentRadius) {
+          const t = (dentRadius - mouseDist) / dentRadius;
+          const dentStrength = t * t * (3 - 2 * t);
+          const mLen = mouseDist || 0.0001;
+          const amp =
+            Math.sin(dentStrength * Math.PI) *
+            0.6 *
+            mousePresence *
+            (1.0 - curve * 0.5);
+          mouseNormalX = (toMouseX / mLen) * amp;
+          mouseNormalY = (toMouseY / mLen) * amp;
         }
       }
-    }
-    if (total > 0.0) {
-        blurredColor /= total;
-    } else {
-        blurredColor = texture2D(iChannel0, clamp(sampleUV, 0.0, 1.0));
-    }
 
-    vec3 progColor = vec3(255.0/255.0, 222.0/255.0, 89.0/255.0); 
+      const finalNormalX = edgeNormalX + mouseNormalX;
+      const finalNormalY = edgeNormalY + mouseNormalY;
 
-    if (u_progress > 0.0) {
-        vec2 calcUV = mix(localUV, vec2(localUV.y, localUV.x), u_fillAxis);
+      const rChan = Math.max(
+        0,
+        Math.min(255, Math.round(128 - finalNormalX * 127.5)),
+      );
+      const gChan = Math.max(
+        0,
+        Math.min(255, Math.round(128 - finalNormalY * 127.5)),
+      );
 
-        float wave1 = sin(calcUV.y * 12.0 + u_time * 5.0) * 0.015;
-        float wave2 = cos(calcUV.y * 20.0 - u_time * 7.0) * 0.010;
-
-        float waveDamp = smoothstep(0.0, 0.1, u_progress) * smoothstep(1.0, 0.9, u_progress);
-        float liquidEdge = u_progress + (wave1 + wave2) * waveDamp;
-
-        float isLiquid = smoothstep(liquidEdge + 0.005, liquidEdge - 0.005, calcUV.x);
-        float foamDist = clamp(liquidEdge - calcUV.x, 0.0, 1.0);
-        float isFoam = smoothstep(0.03, 0.0, foamDist) * isLiquid;
-
-        vec3 surfaceColor = progColor + vec3(0.4); 
-        vec3 finalProgColor = mix(progColor, surfaceColor, isFoam);
-
-        blurredColor.rgb = mix(blurredColor.rgb, finalProgColor, isLiquid * 0.85);
-    }
-
-    vec2 lightDir = normalize(vec2(-1.0, 1.0)); 
-    float edgeLight = dot(-centerDir, lightDir);
-    
-    float edgeGlow = 1.0 - smoothstep(0.0, bevelDepth, innerDist);
-    float highlight = edgeGlow * max(0.0, edgeLight) * 0.15; 
-    float shadow = edgeGlow * max(0.0, -edgeLight) * 0.15; 
-    float specular = exp(-warpedDist * 12.0) * 0.15;
-
-    vec3 finalColor = blurredColor.rgb + vec3(specular) + vec3(highlight) - vec3(shadow);
-    float alpha = 1.0 - smoothstep(-0.5, 0.5, dist);
-
-    fragColor = vec4(finalColor * alpha, alpha);
-  }
-
-  void main() {
-    mainImage(gl_FragColor, gl_FragCoord.xy);
-  }
-`;
-
-const vsSource = `
-  attribute vec2 position;
-  void main() {
-    gl_Position = vec4(position, 0.0, 1.0);
-  }
-`;
-
-// ฟังก์ชันแปลงค่าสี CSS (เช่น rgb, rgba, hex) ให้เป็น Array [r, g, b, 255]
-function parseColorToRgba(colorStr) {
-  if (!colorStr) return null;
-  const rgbMatch = colorStr.match(/rgba?\((\d+),\s*(\d+),\s*(\d+)/);
-  if (rgbMatch) {
-    return [
-      parseInt(rgbMatch[1], 10),
-      parseInt(rgbMatch[2], 10),
-      parseInt(rgbMatch[3], 10),
-      255,
-    ];
-  }
-  if (colorStr.startsWith("#")) {
-    let hex = colorStr.slice(1);
-    if (hex.length === 3) {
-      hex = hex
-        .split("")
-        .map((c) => c + c)
-        .join("");
-    }
-    if (hex.length === 6) {
-      return [
-        parseInt(hex.substring(0, 2), 16),
-        parseInt(hex.substring(2, 4), 16),
-        parseInt(hex.substring(4, 6), 16),
-        255,
-      ];
+      data[idx] = rChan;
+      data[idx + 1] = gChan;
+      data[idx + 2] = 128;
+      data[idx + 3] = 255;
+      idx += 4;
     }
   }
-  try {
-    const ctx = document.createElement("canvas").getContext("2d");
-    if (ctx) {
-      ctx.fillStyle = colorStr;
-      ctx.fillRect(0, 0, 1, 1);
-      const data = ctx.getImageData(0, 0, 1, 1).data;
-      if (data && data.length >= 4) {
-        return [data[0], data[1], data[2], 255];
-      }
-    }
-  } catch (e) {}
-  return null;
+
+  ctx.putImageData(imgData, 0, 0);
+  const pngUrl = dispCanvas.toDataURL();
+  const svgWrapper = `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 ${cw} ${ch}" preserveAspectRatio="none"><image width="${cw}" height="${ch}" preserveAspectRatio="none" href="${pngUrl}"/></svg>`;
+  return `data:image/svg+xml;utf8,${encodeURIComponent(svgWrapper)}`;
 }
 
-// ฟังก์ชันดึงสีพื้นหลังปัจจุบันของหน้าเว็บ (App/Body/Document)
-function getWebBgRgba() {
-  if (typeof window === "undefined" || typeof document === "undefined") {
-    return [244, 246, 248, 255];
-  }
-  try {
-    const candidates = [
-      document.querySelector(".App"),
-      document.body,
-      document.documentElement,
-    ];
-    for (const el of candidates) {
-      if (!el) continue;
-      const bg = window.getComputedStyle(el).backgroundColor;
-      if (bg && bg !== "transparent" && bg !== "rgba(0, 0, 0, 0)") {
-        const parsed = parseColorToRgba(bg);
-        if (parsed) return parsed;
-      }
-    }
-  } catch (e) {}
-  return [244, 246, 248, 255];
-}
-
-export default function LiquidGlassCard({
+const LiquidGlassCard = ({
   children,
-  imageUrl,
-  dynamicBgSource,
-  fallbackBgColor,
   borderRadius = 24,
-  progress = 0,
-  fillAxis = "x",
+  progress = 0.0,
+  fillAxis = "y",
+  liquidColor = [0.1, 0.5, 1.0],
+  refraction = 45.0,
+  bevelRatio = 0.35,
+  specularIntensity = 1.0,
+  blurAmount = 1.8,
+  interactive = true,
   className = "",
   style = {},
-}) {
+}) => {
+  const { isDark } = useTheme();
+  const rawId = useId();
+  const filterId = `liquid-glass-filter-${rawId.replace(/[^a-zA-Z0-9_-]/g, "")}`;
+
   const containerRef = useRef(null);
   const canvasRef = useRef(null);
-  const requestRef = useRef(null);
+  const dispCanvasRef = useRef(null);
 
-  const state = useRef({
-    currentMouse: [-1000, -1000],
-    smoothedMouse: [-1000, -1000],
-    mouseVelocity: [0, 0],
-    pixelRatio: 1.0,
-    isVisible: false,
-    imageRes: [1920, 1080],
-    progress: 0,
-    fillAxis: 0,
-    dynamicBg: null,
-    isUsingDynamic: false,
+  const [boxSize, setBoxSize] = useState({ width: 300, height: 80 });
+  const [dispMapUrl, setDispMapUrl] = useState("");
+
+  const stateRef = useRef({
+    mouse: { x: 0.5, y: 0.5 },
+    targetMouse: { x: 0.5, y: 0.5 },
+    mousePresence: 0.0,
+    targetMousePresence: 0.0,
+    borderRadius,
+    progress,
+    currentProgress: progress,
+    fillAxis: fillAxis === "x" ? 1.0 : 0.0,
+    liquidColor: parseNormalizedColor(liquidColor),
+    refraction,
+    bevelRatio,
+    specularIntensity,
+    blurAmount,
+    interactive,
+    isDark,
+    pos: { x: 0, y: 0 },
+    vel: { x: 0, y: 0 },
+    lastDispUpdate: 0,
+    dispNeedsStaticRebuild: true,
   });
 
+  // Rebuild Displacement Map เฉพาะเมื่อรูปทรงของการ์ดเปลี่ยน (ไม่ Rebuild ตอนสลับธีม)
   useEffect(() => {
-    state.current.progress = progress;
-  }, [progress]);
+    stateRef.current.borderRadius = borderRadius;
+    stateRef.current.bevelRatio = bevelRatio;
+    stateRef.current.dispNeedsStaticRebuild = true;
+  }, [borderRadius, bevelRatio]);
 
   useEffect(() => {
-    state.current.fillAxis = fillAxis === "y" ? 1.0 : 0.0;
-  }, [fillAxis]);
-
-  useEffect(() => {
-    state.current.dynamicBg = dynamicBgSource;
-  }, [dynamicBgSource]);
+    stateRef.current.progress = progress;
+    stateRef.current.fillAxis = fillAxis === "x" ? 1.0 : 0.0;
+    stateRef.current.liquidColor = parseNormalizedColor(liquidColor);
+    stateRef.current.refraction = refraction;
+    stateRef.current.specularIntensity = specularIntensity;
+    stateRef.current.blurAmount = blurAmount;
+    stateRef.current.interactive = interactive;
+    stateRef.current.isDark = isDark;
+  }, [
+    progress,
+    fillAxis,
+    liquidColor,
+    refraction,
+    specularIntensity,
+    blurAmount,
+    interactive,
+    isDark,
+  ]);
 
   useEffect(() => {
     const canvas = canvasRef.current;
     const container = containerRef.current;
+    if (!canvas || !container) return;
+
+    if (!dispCanvasRef.current) {
+      dispCanvasRef.current = document.createElement("canvas");
+    }
+
     const gl = canvas.getContext("webgl", {
       alpha: true,
-      premultipliedAlpha: false,
-      depth: false,
-      antialias: false,
+      premultipliedAlpha: true,
+      antialias: true,
     });
     if (!gl) return;
 
-    let isActive = true;
-
-    const LIQUID_FOLLOW_DAMPING = 0.12;
-    const VELOCITY_DECAY = 0.92;
-    const VELOCITY_SENSITIVITY = 1.5;
-
-    const updateSize = () => {
-      if (!container) return;
-      const dpr = window.devicePixelRatio || 1;
-      state.current.pixelRatio = dpr;
-
-      const rect = container.getBoundingClientRect();
-      const newWidth = Math.floor(rect.width * dpr);
-      const newHeight = Math.floor(rect.height * dpr);
-
-      if (canvas.width !== newWidth || canvas.height !== newHeight) {
-        canvas.width = newWidth;
-        canvas.height = newHeight;
+    const vsSource = `
+      attribute vec2 a_position;
+      varying vec2 v_uv;
+      void main() {
+        v_uv = a_position * 0.5 + 0.5;
+        gl_Position = vec4(a_position, 0.0, 1.0);
       }
+    `;
+
+    // WebGL Shader ต้นฉบับที่ให้แสงสะท้อนขอบกระจก (Specular Rim), เลนส์เมาส์ (Mouse Dent) และความใสแบบดั้งเดิม
+    const fsSource = `
+      precision highp float;
+      varying vec2 v_uv;
+
+      uniform vec2 u_resolution;
+      uniform vec2 u_mouse;
+      uniform float u_mousePresence;
+      uniform float u_borderRadius;
+      uniform float u_time;
+      uniform float u_progress;
+      uniform float u_fillAxis;
+      uniform float u_velX;
+      uniform float u_velY;
+      uniform vec3 u_liquidColor;
+      uniform float u_bevelRatio;
+      uniform float u_specularIntensity;
+      uniform float u_isDark;
+
+      float sdRoundedBox(vec2 p, vec2 b, float r) {
+        vec2 q = abs(p) - b + r;
+        return min(max(q.x, q.y), 0.0) + length(max(q, 0.0)) - r;
+      }
+
+      void main() {
+        vec2 center = u_resolution * 0.5;
+        vec2 p = v_uv * u_resolution - center;
+        float r = min(u_borderRadius, min(center.x, center.y));
+        float dist = sdRoundedBox(p, center, r);
+
+        // 1. ขอบโค้งของแผ่นกระจก (Bevel)
+        float bevelWidth = min(center.x, center.y) * u_bevelRatio;
+        float edgeFactor = clamp(1.0 + dist / bevelWidth, 0.0, 1.0);
+        float curve = pow(edgeFactor, 2.5);
+        vec2 grad = normalize(p + vec2(0.0001));
+        vec2 edgeNormal = grad * curve;
+
+        // 2. รอยบุ๋มเลนส์ตามเมาส์ (Mouse Dent)
+        vec2 mousePos = u_mouse * u_resolution;
+        vec2 toMouse = v_uv * u_resolution - mousePos;
+        float mouseDist = length(toMouse);
+        float dentRadius = 150.0;
+        float dentStrength = smoothstep(dentRadius, 0.0, mouseDist) * u_mousePresence;
+        vec2 mouseNormal = normalize(toMouse + vec2(0.0001)) * sin(dentStrength * 3.14159) * 0.6;
+
+        vec2 finalNormal = edgeNormal + (mouseNormal * (1.0 - curve * 0.5));
+
+        // 3. คำนวณระดับน้ำและคลื่น (Liquid Wave Simulation)
+        float isFilled = 0.0;
+        float waveHighlight = 0.0;
+        if (u_progress > 0.0) {
+          float fillCoord = (u_fillAxis > 0.5) ? v_uv.y : v_uv.x;
+          float currentPos = (u_fillAxis > 0.5) ? v_uv.x : v_uv.y;
+          float vel = (u_fillAxis > 0.5) ? u_velY : u_velX;
+
+          float wave = sin(fillCoord * 12.0 - u_time * 5.0) * 0.008
+                     + cos(fillCoord * 25.0 + u_time * 3.0) * 0.004;
+          float tilt = (fillCoord - 0.5) * clamp(vel, -0.25, 0.25);
+          float edgeDampen = sin(u_progress * 3.14159);
+          float waveOffset = (wave + tilt) * edgeDampen;
+
+          float liquidLevel = u_progress + waveOffset;
+          isFilled = smoothstep(liquidLevel + 0.015, liquidLevel - 0.015, currentPos);
+          waveHighlight = smoothstep(0.02, 0.0, abs(currentPos - liquidLevel)) * edgeDampen;
+        }
+
+        // 4. สีฝ้ากระจกบางๆ และสีน้ำ (เหมือนต้นฉบับ 100%)
+        float glassFrostAlpha = 0.08 + curve * 0.12;
+        vec3 surfaceColor = vec3(1.0);
+        float surfaceAlpha = glassFrostAlpha;
+
+        if (u_progress > 0.0) {
+          vec3 liqRGB = mix(u_liquidColor, vec3(1.0), waveHighlight * 0.55);
+          float liqAlpha = clamp(0.60 + waveHighlight * 0.3, 0.0, 1.0);
+          surfaceColor = mix(surfaceColor, liqRGB, isFilled);
+          surfaceAlpha = mix(surfaceAlpha, liqAlpha, isFilled);
+        }
+
+        // 5. แสงสะท้อนขอบกระจกและเลนส์เมาส์ (Specular Rim & Dent Highlight) เหมือนต้นฉบับ 100%
+        vec2 lightDir1 = normalize(vec2(-1.0, 1.0));
+        vec2 lightDir2 = normalize(vec2(1.0, -1.0));
+        float spec1 = pow(max(dot(finalNormal, lightDir1), 0.0), 8.0) * 0.8;
+        float spec2 = pow(max(dot(finalNormal, lightDir2), 0.0), 4.0) * 0.3;
+        float specular = (spec1 + spec2) * (curve + dentStrength * 0.4) * u_specularIntensity;
+
+        float alpha = 1.0 - smoothstep(-1.0, 1.0, dist);
+
+        vec3 premulRGB = (surfaceColor * surfaceAlpha + vec3(specular)) * alpha;
+        float outAlpha = clamp(surfaceAlpha + specular, 0.0, 1.0) * alpha;
+
+        gl_FragColor = vec4(premulRGB, outAlpha);
+      }
+    `;
+
+    const compileShader = (type, source) => {
+      const s = gl.createShader(type);
+      gl.shaderSource(s, source);
+      gl.compileShader(s);
+      if (!gl.getShaderParameter(s, gl.COMPILE_STATUS)) {
+        console.error(gl.getShaderInfoLog(s));
+      }
+      return s;
     };
 
-    const resizeObserver = new ResizeObserver(updateSize);
-    resizeObserver.observe(container);
-    updateSize();
-
-    const intersectionObserver = new IntersectionObserver((entries) => {
-      state.current.isVisible = entries[0].isIntersecting;
-    });
-    intersectionObserver.observe(container);
-
-    const createShader = (type, source) => {
-      const shader = gl.createShader(type);
-      gl.shaderSource(shader, source);
-      gl.compileShader(shader);
-      return shader;
-    };
-
-    const vs = createShader(gl.VERTEX_SHADER, vsSource);
-    const fs = createShader(gl.FRAGMENT_SHADER, fsSource);
+    const vs = compileShader(gl.VERTEX_SHADER, vsSource);
+    const fs = compileShader(gl.FRAGMENT_SHADER, fsSource);
     const program = gl.createProgram();
     gl.attachShader(program, vs);
     gl.attachShader(program, fs);
@@ -300,201 +353,237 @@ export default function LiquidGlassCard({
     gl.bindBuffer(gl.ARRAY_BUFFER, buffer);
     gl.bufferData(
       gl.ARRAY_BUFFER,
-      new Float32Array([-1, -1, 1, -1, -1, 1, 1, 1]),
+      new Float32Array([-1, -1, 1, -1, -1, 1, -1, 1, 1, -1, 1, 1]),
       gl.STATIC_DRAW,
     );
-    const position = gl.getAttribLocation(program, "position");
-    gl.enableVertexAttribArray(position);
-    gl.vertexAttribPointer(position, 2, gl.FLOAT, false, 0, 0);
 
-    const uniforms = {
-      resolution: gl.getUniformLocation(program, "iResolution"),
-      mouse: gl.getUniformLocation(program, "iMouse"),
-      texture: gl.getUniformLocation(program, "iChannel0"),
-      mouseVelocity: gl.getUniformLocation(program, "iMouseVelocity"),
-      screen: gl.getUniformLocation(program, "u_screen"),
-      offset: gl.getUniformLocation(program, "u_offset"),
-      imageRes: gl.getUniformLocation(program, "u_imageRes"),
-      cardSize: gl.getUniformLocation(program, "u_cardSize"),
-      borderRadius: gl.getUniformLocation(program, "u_borderRadius"),
-      progress: gl.getUniformLocation(program, "u_progress"),
-      time: gl.getUniformLocation(program, "u_time"),
-      fillAxis: gl.getUniformLocation(program, "u_fillAxis"),
-    };
+    const posLoc = gl.getAttribLocation(program, "a_position");
+    gl.enableVertexAttribArray(posLoc);
+    gl.vertexAttribPointer(posLoc, 2, gl.FLOAT, false, 0, 0);
 
-    const handleMouseMove = (e) => {
-      const rect = container.getBoundingClientRect();
-      const pr = state.current.pixelRatio;
-
-      const localX = (e.clientX - rect.left) * pr;
-      const localY = canvas.height - (e.clientY - rect.top) * pr;
-
-      if (state.current.currentMouse[0] === -1000) {
-        state.current.smoothedMouse = [localX, localY];
-      }
-      state.current.currentMouse = [localX, localY];
-    };
-
-    container.addEventListener("mousemove", handleMouseMove);
-
-    // ✅ แก้ไขตรงนี้: เซ็ตค่า Texture ตั้งแต่แรก ด้วยสีพื้นหลังเว็บ (ไม่ให้เป็นกล่องดำ)
-    const initialRgba =
-      (fallbackBgColor ? parseColorToRgba(fallbackBgColor) : null) ||
-      getWebBgRgba();
-
-    const texture = gl.createTexture();
-    gl.bindTexture(gl.TEXTURE_2D, texture);
-    gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, true);
-    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
-    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
-    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
-    // ใส่สีพื้นหลังตั้งต้น เพื่อให้เวลารอ Render ได้สีเดียวกับ Background ของเว็บ
-    gl.texImage2D(
-      gl.TEXTURE_2D,
-      0,
-      gl.RGBA,
-      1,
-      1,
-      0,
-      gl.RGBA,
-      gl.UNSIGNED_BYTE,
-      new Uint8Array(initialRgba),
+    const uRes = gl.getUniformLocation(program, "u_resolution");
+    const uMouse = gl.getUniformLocation(program, "u_mouse");
+    const uMousePresence = gl.getUniformLocation(program, "u_mousePresence");
+    const uRadius = gl.getUniformLocation(program, "u_borderRadius");
+    const uTime = gl.getUniformLocation(program, "u_time");
+    const uProgress = gl.getUniformLocation(program, "u_progress");
+    const uFillAxis = gl.getUniformLocation(program, "u_fillAxis");
+    const uVelX = gl.getUniformLocation(program, "u_velX");
+    const uVelY = gl.getUniformLocation(program, "u_velY");
+    const uLiquidColor = gl.getUniformLocation(program, "u_liquidColor");
+    const uBevelRatio = gl.getUniformLocation(program, "u_bevelRatio");
+    const uSpecularIntensity = gl.getUniformLocation(
+      program,
+      "u_specularIntensity",
     );
+    const uIsDark = gl.getUniformLocation(program, "u_isDark");
 
-    if (imageUrl) {
-      const img = new Image();
-      img.crossOrigin = "anonymous";
-      img.src = imageUrl;
-      img.onload = () => {
-        if (!isActive) return;
-        state.current.imageRes = [img.naturalWidth, img.naturalHeight];
-        gl.bindTexture(gl.TEXTURE_2D, texture);
-        gl.texImage2D(
-          gl.TEXTURE_2D,
-          0,
-          gl.RGBA,
-          gl.RGBA,
-          gl.UNSIGNED_BYTE,
-          img,
+    const resizeObserver = new ResizeObserver((entries) => {
+      for (const entry of entries) {
+        const w = Math.max(1, Math.round(entry.contentRect.width));
+        const h = Math.max(1, Math.round(entry.contentRect.height));
+        setBoxSize((prev) =>
+          prev.width === w && prev.height === h ? prev : { width: w, height: h },
         );
-      };
-    }
-
-    const startTime = performance.now();
-
-    const render = () => {
-      if (state.current.isVisible) {
-        const s = state.current;
-
-        if (!s.isVisible) {
-          s.currentMouse = [-1000, -1000];
-        }
-
-        s.smoothedMouse[0] +=
-          (s.currentMouse[0] - s.smoothedMouse[0]) * LIQUID_FOLLOW_DAMPING;
-        s.smoothedMouse[1] +=
-          (s.currentMouse[1] - s.smoothedMouse[1]) * LIQUID_FOLLOW_DAMPING;
-        const MAX_VELOCITY = 50.0;
-        let velX =
-          (s.currentMouse[0] - s.smoothedMouse[0]) * VELOCITY_SENSITIVITY;
-
-        velX = Math.max(Math.min(velX, MAX_VELOCITY), -MAX_VELOCITY);
-
-        s.mouseVelocity[0] = velX + s.mouseVelocity[0] * VELOCITY_DECAY;
-        s.mouseVelocity[1] =
-          (s.currentMouse[1] - s.smoothedMouse[1]) * VELOCITY_SENSITIVITY +
-          s.mouseVelocity[1] * VELOCITY_DECAY;
-
-        const currentTime = (performance.now() - startTime) / 1000.0;
-
-        // ดึงภาพจาก HTML2Canvas มาใส่ใน WebGL
-        if (s.dynamicBg && s.dynamicBg.width > 0 && s.dynamicBg.height > 0) {
-          gl.bindTexture(gl.TEXTURE_2D, texture);
-          gl.texImage2D(
-            gl.TEXTURE_2D,
-            0,
-            gl.RGBA,
-            gl.RGBA,
-            gl.UNSIGNED_BYTE,
-            s.dynamicBg,
-          );
-          s.imageRes = [s.dynamicBg.width, s.dynamicBg.height];
-          s.isUsingDynamic = true;
-        }
-
-        gl.viewport(0, 0, canvas.width, canvas.height);
-        gl.clear(gl.COLOR_BUFFER_BIT);
-
-        const rect = canvas.getBoundingClientRect();
-        const pr = s.pixelRatio;
-        const screenW = window.innerWidth * pr;
-        const screenH = window.innerHeight * pr;
-        const offsetX = rect.left * pr;
-        const offsetY = (window.innerHeight - rect.bottom) * pr;
-
-        gl.uniform3f(uniforms.resolution, canvas.width, canvas.height, 1.0);
-        gl.uniform4f(
-          uniforms.mouse,
-          s.smoothedMouse[0],
-          s.smoothedMouse[1],
-          0,
-          0,
-        );
-        gl.uniform2f(
-          uniforms.mouseVelocity,
-          s.mouseVelocity[0],
-          s.mouseVelocity[1],
-        );
-        gl.uniform2f(uniforms.screen, screenW, screenH);
-        gl.uniform2f(uniforms.offset, offsetX, offsetY);
-        gl.uniform2f(uniforms.imageRes, s.imageRes[0], s.imageRes[1]);
-        gl.uniform2f(uniforms.cardSize, canvas.width, canvas.height);
-        gl.uniform1f(uniforms.borderRadius, borderRadius * pr);
-        gl.uniform1f(uniforms.progress, s.progress);
-        gl.uniform1f(uniforms.time, currentTime);
-        gl.uniform1f(uniforms.fillAxis, s.fillAxis);
-
-        gl.activeTexture(gl.TEXTURE0);
-        gl.bindTexture(gl.TEXTURE_2D, texture);
-        gl.uniform1i(uniforms.texture, 0);
-
-        gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
+        stateRef.current.dispNeedsStaticRebuild = true;
       }
-      requestRef.current = requestAnimationFrame(render);
+    });
+    resizeObserver.observe(container);
+
+    let animationFrameId;
+    let startTime = performance.now();
+
+    const render = (now) => {
+      const s = stateRef.current;
+      const elapsedTime = (now - startTime) * 0.001;
+
+      const rect = container.getBoundingClientRect();
+      const w = Math.max(1, Math.round(rect.width));
+      const h = Math.max(1, Math.round(rect.height));
+
+      if (canvas.width !== w || canvas.height !== h) {
+        canvas.width = w;
+        canvas.height = h;
+        s.dispNeedsStaticRebuild = true;
+      }
+
+      // 1. คำนวณฟิสิกส์การกระฉอกของน้ำเมื่อการ์ดเคลื่อนที่หรือเลื่อนหน้าจอ
+      const dx = rect.left - s.pos.x;
+      const dy = rect.top - s.pos.y;
+      s.pos.x = rect.left;
+      s.pos.y = rect.top;
+
+      if (Math.abs(dx) < 300 && Math.abs(dy) < 300) {
+        s.vel.x += dx * 0.003;
+        s.vel.y += dy * 0.003;
+      }
+
+      s.vel.x *= 0.92;
+      s.vel.y *= 0.92;
+      s.vel.x = Math.max(-0.5, Math.min(0.5, s.vel.x));
+      s.vel.y = Math.max(-0.5, Math.min(0.5, s.vel.y));
+
+      // 2. สมูทตำแหน่งเมาส์และระดับน้ำ
+      const prevMouseX = s.mouse.x;
+      const prevMouseY = s.mouse.y;
+      const prevPresence = s.mousePresence;
+
+      s.mouse.x += (s.targetMouse.x - s.mouse.x) * 0.14;
+      s.mouse.y += (s.targetMouse.y - s.mouse.y) * 0.14;
+      s.mousePresence += (s.targetMousePresence - s.mousePresence) * 0.12;
+      s.currentProgress += (s.progress - s.currentProgress) * 0.08;
+
+      const mouseDelta =
+        Math.hypot(s.mouse.x - prevMouseX, s.mouse.y - prevMouseY) +
+        Math.abs(s.mousePresence - prevPresence);
+
+      // 3. อัปเดตแผนที่หักเหแสง (Displacement Map) เฉพาะเมื่อขนาดการ์ดเปลี่ยน หรือเมาส์กำลังเคลื่อนที่บนการ์ด
+      if (
+        s.dispNeedsStaticRebuild ||
+        (mouseDelta > 0.0015 && now - s.lastDispUpdate > 28)
+      ) {
+        const url = buildDisplacementDataUrl({
+          dispCanvas: dispCanvasRef.current,
+          width: w,
+          height: h,
+          borderRadius: s.borderRadius,
+          bevelRatio: s.bevelRatio,
+          mouseX: s.mouse.x,
+          mouseY: s.mouse.y,
+          mousePresence: s.interactive ? s.mousePresence : 0.0,
+        });
+        if (url) {
+          setDispMapUrl(url);
+        }
+        s.lastDispUpdate = now;
+        s.dispNeedsStaticRebuild = false;
+      }
+
+      // 4. วาดชั้นผิวกระจก แสงสะท้อนขอบ 3 มิติ และคลื่นน้ำด้วย WebGL
+      gl.viewport(0, 0, canvas.width, canvas.height);
+      gl.clearColor(0, 0, 0, 0);
+      gl.clear(gl.COLOR_BUFFER_BIT);
+
+      gl.uniform2f(uRes, canvas.width, canvas.height);
+      gl.uniform2f(uMouse, s.mouse.x, s.mouse.y);
+      gl.uniform1f(uMousePresence, s.interactive ? s.mousePresence : 0.0);
+      gl.uniform1f(uRadius, s.borderRadius);
+      gl.uniform1f(uTime, elapsedTime);
+      gl.uniform1f(uProgress, s.currentProgress);
+      gl.uniform1f(uFillAxis, s.fillAxis);
+      gl.uniform1f(uVelX, s.vel.x);
+      gl.uniform1f(uVelY, s.vel.y);
+      gl.uniform3fv(uLiquidColor, s.liquidColor);
+      gl.uniform1f(uBevelRatio, s.bevelRatio);
+      gl.uniform1f(uSpecularIntensity, s.specularIntensity);
+      gl.uniform1f(uIsDark, s.isDark ? 1.0 : 0.0);
+
+      gl.drawArrays(gl.TRIANGLES, 0, 6);
+      animationFrameId = requestAnimationFrame(render);
     };
 
-    render();
+    animationFrameId = requestAnimationFrame(render);
 
     return () => {
-      isActive = false;
+      cancelAnimationFrame(animationFrameId);
       resizeObserver.disconnect();
-      intersectionObserver.disconnect();
-      container.removeEventListener("mousemove", handleMouseMove);
-      cancelAnimationFrame(requestRef.current);
-      gl.deleteProgram(program);
-
       gl.deleteBuffer(buffer);
-      gl.deleteTexture(texture);
+      gl.deleteProgram(program);
       gl.deleteShader(vs);
       gl.deleteShader(fs);
-      gl.deleteProgram(program);
-
-      if (canvas && !document.body.contains(canvas)) {
-        const ext = gl.getExtension("WEBGL_lose_context");
-        if (ext) {
-          ext.loseContext();
-        }
-      }
     };
-  }, [imageUrl, borderRadius, dynamicBgSource, fallbackBgColor]);
-  // ↑ อัปเดต Dependencies เพื่อดักจับตอนส่งภาพแคปหน้าจอมาใหม่ หรือเมื่อสีพื้นหลังเปลี่ยน
+  }, []);
+
+  const handleMouseMove = (e) => {
+    if (!stateRef.current.interactive || !canvasRef.current) return;
+    const rect = canvasRef.current.getBoundingClientRect();
+    stateRef.current.targetMouse.x = (e.clientX - rect.left) / rect.width;
+    stateRef.current.targetMouse.y = 1.0 - (e.clientY - rect.top) / rect.height;
+    stateRef.current.targetMousePresence = 1.0;
+  };
+
+  const handleMouseLeave = () => {
+    stateRef.current.targetMousePresence = 0.0;
+    stateRef.current.dispNeedsStaticRebuild = true;
+  };
+
+  const activeBackdropFilter = dispMapUrl
+    ? `url(#${filterId})`
+    : `blur(${blurAmount * 3}px) saturate(140%)`;
 
   return (
     <div
       ref={containerRef}
       className={className}
-      style={{ position: "relative", ...style }}
+      onMouseMove={handleMouseMove}
+      onMouseLeave={handleMouseLeave}
+      style={{
+        position: "relative",
+        display: "inline-block",
+        borderRadius: `${borderRadius}px`,
+        overflow: "hidden",
+        backdropFilter: activeBackdropFilter,
+        WebkitBackdropFilter: activeBackdropFilter,
+        boxShadow:
+          "0 10px 30px -10px rgba(0, 0, 0, 0.15), inset 0 0 0 1px rgba(255, 255, 255, 0.2)",
+        ...style,
+      }}
     >
+      {/* SVG Filter สำหรับสั่งให้ Browser Compositor หักเหพิกเซลพื้นหลังจริงแบบ Real-time */}
+      <svg
+        width="0"
+        height="0"
+        aria-hidden="true"
+        style={{
+          position: "absolute",
+          width: 0,
+          height: 0,
+          pointerEvents: "none",
+        }}
+      >
+        <defs>
+          <filter
+            id={filterId}
+            x="-12%"
+            y="-12%"
+            width="124%"
+            height="124%"
+            filterUnits="objectBoundingBox"
+            primitiveUnits="userSpaceOnUse"
+            colorInterpolationFilters="sRGB"
+          >
+            {dispMapUrl && (
+              <feImage
+                href={dispMapUrl}
+                x="0"
+                y="0"
+                width={boxSize.width}
+                height={boxSize.height}
+                preserveAspectRatio="none"
+                result="dispMap"
+              />
+            )}
+            <feGaussianBlur
+              in="SourceGraphic"
+              stdDeviation={blurAmount}
+              edgeMode="duplicate"
+              result="blurredBg"
+            />
+            {dispMapUrl ? (
+              <feDisplacementMap
+                in="blurredBg"
+                in2="dispMap"
+                scale={refraction * 2}
+                xChannelSelector="R"
+                yChannelSelector="G"
+                result="refractedBg"
+              />
+            ) : null}
+          </filter>
+        </defs>
+      </svg>
+
+      {/* เลเยอร์ WebGL สำหรับวาดความใสของผิวกระจก แสงสะท้อนขอบโค้ง (Specular) และคลื่นของเหลว */}
       <canvas
         ref={canvasRef}
         style={{
@@ -503,13 +592,26 @@ export default function LiquidGlassCard({
           left: 0,
           width: "100%",
           height: "100%",
-          zIndex: 0,
           pointerEvents: "none",
+          zIndex: 0,
+          display: "block",
         }}
       />
-      <div style={{ position: "relative", zIndex: 1, height: "100%" }}>
+
+      {/* เนื้อหาภายในของการ์ด */}
+      <div
+        style={{
+          position: "relative",
+          zIndex: 1,
+          width: "100%",
+          height: "100%",
+          boxSizing: "border-box",
+        }}
+      >
         {children}
       </div>
     </div>
   );
-}
+};
+
+export default LiquidGlassCard;

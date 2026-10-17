@@ -532,6 +532,7 @@ function Profile() {
 
   return (
     <div
+      className="page-enter"
       style={{
         padding: "2rem",
         maxWidth: "900px",
@@ -616,6 +617,7 @@ function Profile() {
           <div style={{ display: "flex", gap: "0.5rem", flexWrap: "wrap" }}>
             {isCustomerOrSeller && (
               <button
+                className="btn-interactive"
                 onClick={() => setSwitchRoleOpen(true)}
                 style={{
                   padding: "0.5rem 1rem",
@@ -633,6 +635,7 @@ function Profile() {
               </button>
             )}
             <button
+              className="btn-interactive"
               onClick={() => setEditMode(!editMode)}
               style={{
                 padding: "0.5rem 1rem",
@@ -648,6 +651,7 @@ function Profile() {
               {editMode ? "✕ ปิดหน้าแก้ไข" : "⚙️ แก้ไขบัญชี"}
             </button>
             <button
+              className="btn-interactive"
               onClick={handleLogout}
               style={{
                 padding: "0.5rem 1rem",
