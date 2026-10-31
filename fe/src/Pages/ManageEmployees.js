@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { usePopup } from "../context/PopupContext";
+import LiquidGlassCard from "../LiquidGlassCard";
 
 function ManageEmployees() {
   const { showAlert, showConfirm } = usePopup();
@@ -120,40 +121,45 @@ function ManageEmployees() {
       className="page-enter"
       style={{ maxWidth: "840px", margin: "1.5rem auto", padding: "1.5rem" }}
     >
-      <h2 style={{ marginTop: 0, color: "#0f172a" }}>
-        👔 จัดการข้อมูลพนักงาน (Employee Management)
-      </h2>
+      <LiquidGlassCard
+        borderRadius={20}
+        blurAmount={14}
+        bevelRatio={0.24}
+        className="liquid-glass-surface"
+        style={{ display: "block", width: "100%", marginBottom: "1.5rem" }}
+      >
+        <div style={{ padding: "1.4rem 1.5rem" }}>
+          <h2 style={{ margin: "0 0 1rem 0", color: "#0f172a" }}>
+            👔 จัดการข้อมูลพนักงาน (Employee Management)
+          </h2>
 
-      <input
-        className="form-input"
-        type="text"
-        placeholder="🔍 ค้นหาชื่อ, นามสกุล หรือ Username..."
-        value={searchText}
-        onChange={(e) => setSearchText(e.target.value)}
-        style={{
-          width: "100%",
-          padding: "0.85rem 1rem",
-          borderRadius: "12px",
-          border: "1px solid #cbd5e1",
-          marginBottom: "1.5rem",
-          boxSizing: "border-box",
-          fontSize: "0.95rem",
-          boxShadow: "var(--shadow-sm)",
-        }}
-      />
+          <input
+            className="form-input"
+            type="text"
+            placeholder="🔍 ค้นหาชื่อ, นามสกุล หรือ Username..."
+            value={searchText}
+            onChange={(e) => setSearchText(e.target.value)}
+            style={{
+              width: "100%",
+              padding: "0.85rem 1rem",
+              borderRadius: "12px",
+              border: "1px solid #cbd5e1",
+              boxSizing: "border-box",
+              fontSize: "0.95rem",
+            }}
+          />
+        </div>
+      </LiquidGlassCard>
 
       <div style={{ display: "flex", flexDirection: "column", gap: "1rem" }}>
         {paginatedUsers.map((u, idx) => (
           <div
             key={u.AC_ID}
-            className="stagger-item"
+            className="glass-panel stagger-item"
             style={{
               "--stagger-index": idx,
-              background: "#fff",
               padding: "1.1rem 1.5rem",
               borderRadius: "14px",
-              border: "1px solid #e2e8f0",
-              boxShadow: "var(--shadow-sm)",
               display: "flex",
               alignItems: "center",
               justifyContent: "space-between",
@@ -262,16 +268,15 @@ function ManageEmployees() {
           }}
         >
           <button
-            className="btn-interactive"
+            className="btn-interactive glass-panel"
             onClick={() => handlePageChange(safeCurrentPage - 1)}
             disabled={safeCurrentPage <= 1}
             style={{
               padding: "0.6rem 1.2rem",
-              borderRadius: "8px",
-              border: "1px solid #cbd5e1",
-              background: safeCurrentPage <= 1 ? "#f8fafc" : "#fff",
+              borderRadius: "10px",
               color: safeCurrentPage <= 1 ? "#94a3b8" : "#0f172a",
               cursor: safeCurrentPage <= 1 ? "not-allowed" : "pointer",
+              opacity: safeCurrentPage <= 1 ? 0.6 : 1,
             }}
           >
             ก่อนหน้า
@@ -282,16 +287,15 @@ function ManageEmployees() {
           </span>
 
           <button
-            className="btn-interactive"
+            className="btn-interactive glass-panel"
             onClick={() => handlePageChange(safeCurrentPage + 1)}
             disabled={safeCurrentPage >= totalPages}
             style={{
               padding: "0.6rem 1.2rem",
-              borderRadius: "8px",
-              border: "1px solid #cbd5e1",
-              background: safeCurrentPage >= totalPages ? "#f8fafc" : "#fff",
+              borderRadius: "10px",
               color: safeCurrentPage >= totalPages ? "#94a3b8" : "#0f172a",
               cursor: safeCurrentPage >= totalPages ? "not-allowed" : "pointer",
+              opacity: safeCurrentPage >= totalPages ? 0.6 : 1,
             }}
           >
             ถัดไป

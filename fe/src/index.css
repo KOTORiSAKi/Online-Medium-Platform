@@ -1,8 +1,8 @@
 :root {
   color-scheme: light dark;
 
-  --light-bg-main: #f4f6f8;
-  --dark-bg-main: #0b1120;
+  --light-bg-main: #eef3fb;
+  --dark-bg-main: #070d19;
 
   --light-surface-1: #ffffff;
   --dark-surface-1: #1e293b;
@@ -30,6 +30,28 @@
 
   --light-scrollbar-track: #f1f5f9;
   --dark-scrollbar-track: #0f172a;
+
+  /* Ambient Light Palette (Light Mode Default) */
+  --ambient-wash-1: rgba(191, 219, 254, 0.72);
+  --ambient-wash-2: rgba(233, 213, 255, 0.38);
+  --ambient-orb-1a: rgba(59, 130, 246, 0.34);
+  --ambient-orb-1b: rgba(96, 165, 250, 0.15);
+  --ambient-orb-2a: rgba(139, 92, 246, 0.3);
+  --ambient-orb-2b: rgba(192, 132, 252, 0.14);
+  --ambient-orb-3a: rgba(16, 185, 129, 0.25);
+  --ambient-orb-3b: rgba(45, 212, 191, 0.12);
+  --ambient-orb-4a: rgba(244, 114, 182, 0.24);
+  --ambient-orb-4b: rgba(251, 146, 60, 0.11);
+  --ambient-orb-5a: rgba(6, 182, 212, 0.25);
+  --ambient-orb-5b: rgba(56, 189, 248, 0.11);
+  --ambient-blend: normal;
+
+  --shadow-sm:
+    0 2px 6px rgba(15, 23, 42, 0.04),
+    0 8px 20px -6px rgba(37, 99, 235, 0.07);
+  --shadow-md:
+    0 4px 12px rgba(15, 23, 42, 0.05),
+    0 18px 38px -10px rgba(37, 99, 235, 0.12);
 
   --bg-main: var(--light-bg-main);
   --surface-1: var(--light-surface-1);
@@ -66,6 +88,20 @@
     --border-subtle: var(--dark-border-subtle);
     --scrollbar-thumb: var(--dark-scrollbar-thumb);
     --scrollbar-track: var(--dark-scrollbar-track);
+
+    --ambient-wash-1: rgba(30, 64, 175, 0.42);
+    --ambient-wash-2: rgba(88, 28, 135, 0.26);
+    --ambient-orb-1a: rgba(37, 99, 235, 0.44);
+    --ambient-orb-1b: rgba(59, 130, 246, 0.18);
+    --ambient-orb-2a: rgba(124, 58, 237, 0.38);
+    --ambient-orb-2b: rgba(168, 85, 247, 0.16);
+    --ambient-orb-3a: rgba(16, 185, 129, 0.3);
+    --ambient-orb-3b: rgba(20, 184, 166, 0.13);
+    --ambient-orb-4a: rgba(217, 70, 239, 0.26);
+    --ambient-orb-4b: rgba(99, 102, 241, 0.13);
+    --ambient-orb-5a: rgba(14, 165, 233, 0.32);
+    --ambient-orb-5b: rgba(56, 189, 248, 0.12);
+    --ambient-blend: screen;
   }
 }
 
@@ -113,6 +149,27 @@
   --border-subtle: var(--dark-border-subtle);
   --scrollbar-thumb: var(--dark-scrollbar-thumb);
   --scrollbar-track: var(--dark-scrollbar-track);
+
+  --ambient-wash-1: rgba(30, 64, 175, 0.42);
+  --ambient-wash-2: rgba(88, 28, 135, 0.26);
+  --ambient-orb-1a: rgba(37, 99, 235, 0.44);
+  --ambient-orb-1b: rgba(59, 130, 246, 0.18);
+  --ambient-orb-2a: rgba(124, 58, 237, 0.38);
+  --ambient-orb-2b: rgba(168, 85, 247, 0.16);
+  --ambient-orb-3a: rgba(16, 185, 129, 0.3);
+  --ambient-orb-3b: rgba(20, 184, 166, 0.13);
+  --ambient-orb-4a: rgba(217, 70, 239, 0.26);
+  --ambient-orb-4b: rgba(99, 102, 241, 0.13);
+  --ambient-orb-5a: rgba(14, 165, 233, 0.32);
+  --ambient-orb-5b: rgba(56, 189, 248, 0.12);
+  --ambient-blend: screen;
+
+  --shadow-sm:
+    0 4px 12px rgba(0, 0, 0, 0.32),
+    0 12px 26px -8px rgba(0, 0, 0, 0.42);
+  --shadow-md:
+    0 8px 20px rgba(0, 0, 0, 0.42),
+    0 24px 48px -12px rgba(0, 0, 0, 0.58);
 }
 
 :root:has(> head > meta[name="color-scheme"][content="light"]),
@@ -128,6 +185,20 @@
   --border-subtle: var(--light-border-subtle);
   --scrollbar-thumb: var(--light-scrollbar-thumb);
   --scrollbar-track: var(--light-scrollbar-track);
+
+  --ambient-wash-1: rgba(191, 219, 254, 0.72);
+  --ambient-wash-2: rgba(233, 213, 255, 0.38);
+  --ambient-orb-1a: rgba(59, 130, 246, 0.34);
+  --ambient-orb-1b: rgba(96, 165, 250, 0.15);
+  --ambient-orb-2a: rgba(139, 92, 246, 0.3);
+  --ambient-orb-2b: rgba(192, 132, 252, 0.14);
+  --ambient-orb-3a: rgba(16, 185, 129, 0.25);
+  --ambient-orb-3b: rgba(45, 212, 191, 0.12);
+  --ambient-orb-4a: rgba(244, 114, 182, 0.24);
+  --ambient-orb-4b: rgba(251, 146, 60, 0.11);
+  --ambient-orb-5a: rgba(6, 182, 212, 0.25);
+  --ambient-orb-5b: rgba(56, 189, 248, 0.11);
+  --ambient-blend: normal;
 }
 
 @supports (background: linear-gradient(in oklab, white, black)) {
@@ -308,39 +379,306 @@ code {
 }
 
 /* =========================================================
+   Dynamic Ambient Light Background & Two-Tier Glass System
+   ========================================================= */
+.ambient-bg-root {
+  position: fixed;
+  inset: 0;
+  width: 100vw;
+  height: 100vh;
+  z-index: 0;
+  pointer-events: none;
+  overflow: hidden;
+  contain: strict;
+  isolation: isolate;
+}
+
+.ambient-bg-wash {
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(
+    125% 95% at 50% -10% var(--in-oklch),
+    var(--ambient-wash-1) 0%,
+    var(--ambient-wash-2) 44%,
+    transparent 76%
+  );
+}
+
+.ambient-orb {
+  position: absolute;
+  border-radius: 50%;
+  mix-blend-mode: var(--ambient-blend);
+  will-change: transform;
+  pointer-events: none;
+}
+
+.ambient-orb-1 {
+  width: 68vmax;
+  height: 68vmax;
+  top: -22vmax;
+  left: -16vmax;
+  background: radial-gradient(
+    circle var(--in-oklch),
+    var(--ambient-orb-1a) 0%,
+    var(--ambient-orb-1b) 38%,
+    transparent 70%
+  );
+  animation: ambientDrift1 22s ease-in-out infinite alternate;
+}
+
+.ambient-orb-2 {
+  width: 64vmax;
+  height: 64vmax;
+  top: -14vmax;
+  right: -18vmax;
+  background: radial-gradient(
+    circle var(--in-oklch),
+    var(--ambient-orb-2a) 0%,
+    var(--ambient-orb-2b) 38%,
+    transparent 70%
+  );
+  animation: ambientDrift2 27s ease-in-out infinite alternate;
+}
+
+.ambient-orb-3 {
+  width: 62vmax;
+  height: 62vmax;
+  bottom: -22vmax;
+  left: -10vmax;
+  background: radial-gradient(
+    circle var(--in-oklch),
+    var(--ambient-orb-3a) 0%,
+    var(--ambient-orb-3b) 38%,
+    transparent 70%
+  );
+  animation: ambientDrift3 31s ease-in-out infinite alternate;
+}
+
+.ambient-orb-4 {
+  width: 60vmax;
+  height: 60vmax;
+  bottom: -18vmax;
+  right: -12vmax;
+  background: radial-gradient(
+    circle var(--in-oklch),
+    var(--ambient-orb-4a) 0%,
+    var(--ambient-orb-4b) 38%,
+    transparent 70%
+  );
+  animation: ambientDrift4 25s ease-in-out infinite alternate;
+}
+
+.ambient-orb-5 {
+  width: 52vmax;
+  height: 52vmax;
+  top: 24vh;
+  left: 26vw;
+  background: radial-gradient(
+    circle var(--in-oklch),
+    var(--ambient-orb-5a) 0%,
+    var(--ambient-orb-5b) 36%,
+    transparent 68%
+  );
+  animation: ambientDrift5 29s ease-in-out infinite alternate;
+}
+
+@keyframes ambientDrift1 {
+  0% {
+    transform: translate3d(0, 0, 0) scale(1);
+  }
+  50% {
+    transform: translate3d(14vw, 10vh, 0) scale(1.12);
+  }
+  100% {
+    transform: translate3d(6vw, 22vh, 0) scale(0.95);
+  }
+}
+
+@keyframes ambientDrift2 {
+  0% {
+    transform: translate3d(0, 0, 0) scale(1);
+  }
+  50% {
+    transform: translate3d(-15vw, 14vh, 0) scale(1.08);
+  }
+  100% {
+    transform: translate3d(-8vw, 26vh, 0) scale(1.15);
+  }
+}
+
+@keyframes ambientDrift3 {
+  0% {
+    transform: translate3d(0, 0, 0) scale(1);
+  }
+  50% {
+    transform: translate3d(16vw, -12vh, 0) scale(1.14);
+  }
+  100% {
+    transform: translate3d(24vw, -4vh, 0) scale(0.94);
+  }
+}
+
+@keyframes ambientDrift4 {
+  0% {
+    transform: translate3d(0, 0, 0) scale(1);
+  }
+  50% {
+    transform: translate3d(-14vw, -14vh, 0) scale(1.1);
+  }
+  100% {
+    transform: translate3d(-22vw, -6vh, 0) scale(0.96);
+  }
+}
+
+@keyframes ambientDrift5 {
+  0% {
+    transform: translate3d(-8vw, -6vh, 0) scale(0.94);
+  }
+  50% {
+    transform: translate3d(10vw, 8vh, 0) scale(1.14);
+  }
+  100% {
+    transform: translate3d(-4vw, 14vh, 0) scale(1.02);
+  }
+}
+
+/* Tier 1 Companion Surface: ใช้คู่กับ <LiquidGlassCard> สำหรับ Hero / Auth / Focal Cards */
+.liquid-glass-surface {
+  background-color: rgba(255, 255, 255, 0.24);
+  border: 1px solid rgba(255, 255, 255, 0.66);
+  box-shadow:
+    0 4px 12px rgba(15, 23, 42, 0.05),
+    0 18px 40px -10px rgba(37, 99, 235, 0.12),
+    inset 0 1px 0 rgba(255, 255, 255, 0.78) !important;
+}
+
+:root[data-theme="dark"] .liquid-glass-surface {
+  background-color: rgba(15, 23, 42, 0.34);
+  border: 1px solid rgba(148, 163, 184, 0.26);
+  box-shadow:
+    0 8px 20px rgba(0, 0, 0, 0.38),
+    0 22px 48px -12px rgba(0, 0, 0, 0.62),
+    inset 0 1px 0 rgba(255, 255, 255, 0.16) !important;
+}
+
+/* Tier 2 Primary Frosted Glass: ใช้กับการ์ดทั่วไป ตาราง และกล่องเนื้อหา (0 WebGL Contexts) */
+.glass-panel {
+  background-color: rgba(255, 255, 255, 0.66) !important;
+  backdrop-filter: blur(16px) saturate(165%);
+  -webkit-backdrop-filter: blur(16px) saturate(165%);
+  border: 1px solid rgba(255, 255, 255, 0.8);
+  box-shadow:
+    0 2px 6px rgba(15, 23, 42, 0.04),
+    0 14px 32px -8px rgba(37, 99, 235, 0.09),
+    inset 0 1px 0 rgba(255, 255, 255, 0.86),
+    inset 0 0 0 1px rgba(226, 232, 240, 0.45);
+}
+
+:root[data-theme="dark"] .glass-panel {
+  background-color: rgba(15, 23, 42, 0.64) !important;
+  border-color: rgba(148, 163, 184, 0.22) !important;
+  box-shadow:
+    0 4px 12px rgba(0, 0, 0, 0.35),
+    0 18px 38px -8px rgba(0, 0, 0, 0.48),
+    inset 0 1px 0 rgba(255, 255, 255, 0.12) !important;
+}
+
+/* Tier 2 Sheer Glass (No backdrop-filter): สำหรับกล่องที่มี <LiquidGlassCard> อยู่ข้างใน เพื่อไม่ให้เกิด Nested Backdrop Clipping */
+.glass-sheer {
+  background-color: rgba(255, 255, 255, 0.68) !important;
+  border: 1px solid rgba(255, 255, 255, 0.82);
+  box-shadow:
+    0 2px 6px rgba(15, 23, 42, 0.04),
+    0 14px 30px -8px rgba(37, 99, 235, 0.08),
+    inset 0 1px 0 rgba(255, 255, 255, 0.85);
+}
+
+:root[data-theme="dark"] .glass-sheer {
+  background-color: rgba(15, 23, 42, 0.66) !important;
+  border-color: rgba(148, 163, 184, 0.22) !important;
+  box-shadow:
+    0 4px 12px rgba(0, 0, 0, 0.35),
+    0 16px 34px -8px rgba(0, 0, 0, 0.45),
+    inset 0 1px 0 rgba(255, 255, 255, 0.1) !important;
+}
+
+/* Tier 2 Inner Sub-Surface: สำหรับกล่องย่อยด้านในของการ์ดกระจก (ไม่ซ้อน backdrop-filter ซ้ำ) */
+.glass-subtle {
+  background-color: rgba(255, 255, 255, 0.52) !important;
+  border: 1px solid rgba(226, 232, 240, 0.78);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.75);
+}
+
+:root[data-theme="dark"] .glass-subtle {
+  background-color: rgba(15, 23, 42, 0.5) !important;
+  border-color: rgba(148, 163, 184, 0.2) !important;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.08);
+}
+
+/* Tier 2 Interactive Glass Pill: สำหรับปุ่มหมวดหมู่และปุ่มกรอง */
+.glass-pill {
+  backdrop-filter: blur(10px) saturate(150%);
+  -webkit-backdrop-filter: blur(10px) saturate(150%);
+  box-shadow:
+    0 2px 8px rgba(15, 23, 42, 0.05),
+    inset 0 1px 0 rgba(255, 255, 255, 0.8);
+}
+
+@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+  .liquid-glass-surface,
+  .glass-panel,
+  .product-card,
+  .modal-content {
+    background-color: rgba(255, 255, 255, 0.94) !important;
+  }
+  :root[data-theme="dark"] .liquid-glass-surface,
+  :root[data-theme="dark"] .glass-panel,
+  :root[data-theme="dark"] .product-card,
+  :root[data-theme="dark"] .modal-content {
+    background-color: rgba(30, 41, 59, 0.95) !important;
+  }
+}
+
+/* =========================================================
    Interactive Product Cards & Buttons
    ========================================================= */
 .product-card {
+  backdrop-filter: blur(14px) saturate(160%);
+  -webkit-backdrop-filter: blur(14px) saturate(160%);
   transition:
     transform 0.28s cubic-bezier(0.16, 1, 0.3, 1),
     box-shadow 0.28s cubic-bezier(0.16, 1, 0.3, 1),
     border-color 0.2s ease,
     background-color 0.25s ease !important;
   box-shadow:
-    0 1px 2px rgba(15, 23, 42, 0.04),
-    0 4px 12px rgba(15, 23, 42, 0.04);
+    0 2px 6px rgba(15, 23, 42, 0.04),
+    0 10px 24px -6px rgba(37, 99, 235, 0.08),
+    inset 0 1px 0 rgba(255, 255, 255, 0.82);
 }
 
 .product-card:hover {
   transform: translateY(-6px);
   box-shadow:
-    0 4px 8px rgba(15, 23, 42, 0.05),
-    0 16px 32px -4px rgba(37, 99, 235, 0.12) !important;
+    0 6px 14px rgba(15, 23, 42, 0.06),
+    0 20px 38px -6px rgba(37, 99, 235, 0.16),
+    inset 0 1px 0 rgba(255, 255, 255, 0.92) !important;
 }
 
 :root[data-theme="dark"] .product-card {
-  background-color: #1e293b !important;
-  border-color: #334155 !important;
+  background-color: rgba(30, 41, 59, 0.64) !important;
+  border-color: rgba(148, 163, 184, 0.22) !important;
   box-shadow:
-    0 2px 6px rgba(0, 0, 0, 0.35),
-    0 8px 20px rgba(0, 0, 0, 0.28) !important;
+    0 4px 10px rgba(0, 0, 0, 0.35),
+    0 14px 30px -6px rgba(0, 0, 0, 0.42),
+    inset 0 1px 0 rgba(255, 255, 255, 0.12) !important;
 }
 
 :root[data-theme="dark"] .product-card:hover {
-  border-color: #3b82f6 !important;
+  border-color: rgba(96, 165, 250, 0.65) !important;
   box-shadow:
-    0 8px 16px rgba(0, 0, 0, 0.45),
-    0 18px 36px -4px rgba(59, 130, 246, 0.28) !important;
+    0 8px 18px rgba(0, 0, 0, 0.48),
+    0 20px 40px -4px rgba(59, 130, 246, 0.3),
+    inset 0 1px 0 rgba(255, 255, 255, 0.2) !important;
 }
 
 .product-card-img-wrap {
@@ -380,8 +718,8 @@ code {
   width: 100%;
   padding: 0.7rem 0.9rem;
   border-radius: 10px;
-  border: 1.5px solid var(--border-subtle);
-  background-color: var(--surface-1);
+  border: 1.5px solid rgba(148, 163, 184, 0.4);
+  background-color: rgba(255, 255, 255, 0.76);
   color: var(--text-primary);
   font-size: 0.92rem;
   outline: none;
@@ -392,7 +730,12 @@ code {
     color 0.2s ease;
 }
 
+select.form-input {
+  background-color: rgba(255, 255, 255, 0.9);
+}
+
 .form-input:focus {
+  background-color: rgba(255, 255, 255, 0.95);
   border-color: #3b82f6;
   box-shadow: 0 0 0 3.5px rgba(59, 130, 246, 0.2);
 }
@@ -411,9 +754,9 @@ code {
   inset: 0 !important;
   width: 100vw !important;
   height: 100vh !important;
-  background-color: rgba(15, 23, 42, 0.56);
-  backdrop-filter: blur(6px);
-  -webkit-backdrop-filter: blur(6px);
+  background-color: rgba(15, 23, 42, 0.52);
+  backdrop-filter: blur(8px) saturate(140%);
+  -webkit-backdrop-filter: blur(8px) saturate(140%);
   display: flex;
   justify-content: center;
   align-items: center;
@@ -425,23 +768,27 @@ code {
 }
 
 .modal-content {
-  background-color: var(--surface-1);
+  background-color: rgba(255, 255, 255, 0.84) !important;
+  backdrop-filter: blur(20px) saturate(175%);
+  -webkit-backdrop-filter: blur(20px) saturate(175%);
   color: var(--text-primary);
-  border-radius: 18px;
-  border: 1px solid var(--border-subtle);
+  border-radius: 20px;
+  border: 1px solid rgba(255, 255, 255, 0.82);
   box-shadow:
-    0 10px 25px -5px rgba(15, 23, 42, 0.15),
-    0 25px 50px -12px rgba(15, 23, 42, 0.25);
+    0 12px 28px -5px rgba(15, 23, 42, 0.16),
+    0 28px 56px -12px rgba(15, 23, 42, 0.24),
+    inset 0 1px 0 rgba(255, 255, 255, 0.92);
   overscroll-behavior: contain;
   animation: modalPopIn 0.28s cubic-bezier(0.16, 1, 0.3, 1) backwards;
 }
 
 :root[data-theme="dark"] .modal-content {
-  background-color: #1e293b !important;
-  border-color: #334155 !important;
+  background-color: rgba(15, 23, 42, 0.82) !important;
+  border-color: rgba(148, 163, 184, 0.26) !important;
   box-shadow:
-    0 14px 32px -5px rgba(0, 0, 0, 0.6),
-    0 28px 60px -12px rgba(0, 0, 0, 0.75) !important;
+    0 16px 36px -5px rgba(0, 0, 0, 0.62),
+    0 30px 64px -12px rgba(0, 0, 0, 0.78),
+    inset 0 1px 0 rgba(255, 255, 255, 0.15) !important;
 }
 
 dialog:modal {
@@ -581,30 +928,32 @@ progress.loading-spinner:indeterminate {
    Comprehensive Dark Mode Adaptation for All Pages & Inline Styles
    ========================================================= */
 
-/* 1. Primary White Cards & Containers -> Dark Slate Surface (#1e293b) */
+/* 1. Primary White Cards & Containers -> Translucent Dark Slate Glass */
 :root[data-theme="dark"] [style*="background-color: rgb(255, 255, 255)"],
 :root[data-theme="dark"] [style*="background-color:#fff"],
 :root[data-theme="dark"] [style*="background-color: white"],
 :root[data-theme="dark"] [style*="background: rgb(255, 255, 255)"],
 :root[data-theme="dark"] [style*="background:#fff"],
 :root[data-theme="dark"] [style*="background: white"] {
-  background-color: #1e293b !important;
+  background-color: rgba(30, 41, 59, 0.68) !important;
   color: #f8fafc;
 }
 
-/* 2. Secondary Light Gray Surfaces (#f8fafc, #f9fafb, #f4f6f8, #f3f4f6) -> Deep Slate (#0f172a / #111827) */
+/* 2. Secondary Light Gray Surfaces (#f8fafc, #f9fafb, #f4f6f8, #f3f4f6) -> Translucent Deep Slate */
 :root[data-theme="dark"] [style*="background-color: rgb(248, 250, 252)"],
 :root[data-theme="dark"] [style*="background-color: rgb(249, 250, 251)"],
 :root[data-theme="dark"] [style*="background-color: rgb(244, 246, 248)"],
 :root[data-theme="dark"] [style*="background-color: rgb(243, 244, 246)"],
 :root[data-theme="dark"] [style*="background-color: rgb(250, 250, 250)"],
+:root[data-theme="dark"] [style*="background-color: rgb(252, 252, 252)"],
 :root[data-theme="dark"] [style*="background: rgb(248, 250, 252)"],
 :root[data-theme="dark"] [style*="background: rgb(249, 250, 251)"],
-:root[data-theme="dark"] [style*="background: rgb(244, 246, 248)"] {
-  background-color: #0f172a !important;
+:root[data-theme="dark"] [style*="background: rgb(244, 246, 248)"],
+:root[data-theme="dark"] [style*="background: rgb(252, 252, 252)"] {
+  background-color: rgba(15, 23, 42, 0.56) !important;
 }
 
-/* 3. Tertiary Muted Gray Surfaces (#f1f5f9, #e2e8f0, #e5e7eb, #eef2f6, #eee) -> Elevated Dark Surface (#334155) */
+/* 3. Tertiary Muted Gray Surfaces (#f1f5f9, #e2e8f0, #e5e7eb, #eef2f6, #eee) -> Translucent Elevated Dark Surface */
 :root[data-theme="dark"] [style*="background-color: rgb(241, 245, 249)"],
 :root[data-theme="dark"] [style*="background-color: rgb(226, 232, 240)"],
 :root[data-theme="dark"] [style*="background-color: rgb(229, 231, 235)"],
@@ -613,7 +962,7 @@ progress.loading-spinner:indeterminate {
 :root[data-theme="dark"] [style*="background-color: rgb(240, 242, 245)"],
 :root[data-theme="dark"] [style*="background: rgb(241, 245, 249)"],
 :root[data-theme="dark"] [style*="background: rgb(226, 232, 240)"] {
-  background-color: #334155 !important;
+  background-color: rgba(51, 65, 85, 0.65) !important;
 }
 
 /* 4. Tinted Pastel Surfaces (Blue / Green / Amber / Red / Purple) -> Rich Translucent Dark Tints */
@@ -788,16 +1137,26 @@ progress.loading-spinner:indeterminate {
 
 /* 9. Native Inputs, Selects, Textareas & Tables in Dark Mode */
 :root[data-theme="dark"] input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not(.navbar-search-input),
-:root[data-theme="dark"] select,
 :root[data-theme="dark"] textarea {
+  background-color: rgba(15, 23, 42, 0.72) !important;
+  color: #f8fafc !important;
+  border-color: rgba(148, 163, 184, 0.28) !important;
+}
+
+:root[data-theme="dark"] select,
+:root[data-theme="dark"] select option {
   background-color: #0f172a !important;
   color: #f8fafc !important;
-  border-color: #334155 !important;
+  border-color: rgba(148, 163, 184, 0.28) !important;
 }
 
 :root[data-theme="dark"] input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not(.navbar-search-input):focus,
-:root[data-theme="dark"] select:focus,
 :root[data-theme="dark"] textarea:focus {
+  background-color: rgba(15, 23, 42, 0.9) !important;
+  border-color: #3b82f6 !important;
+}
+
+:root[data-theme="dark"] select:focus {
   border-color: #3b82f6 !important;
 }
 
@@ -811,23 +1170,26 @@ progress.loading-spinner:indeterminate {
 }
 
 :root[data-theme="dark"] th {
-  background-color: #0f172a !important;
+  background-color: rgba(15, 23, 42, 0.65) !important;
   color: #cbd5e1 !important;
-  border-color: #334155 !important;
+  border-color: rgba(148, 163, 184, 0.22) !important;
 }
 
 :root[data-theme="dark"] td,
 :root[data-theme="dark"] tr {
-  border-color: #334155 !important;
+  border-color: rgba(148, 163, 184, 0.18) !important;
 }
 
 :root[data-theme="dark"] hr {
-  border-color: #334155 !important;
+  border-color: rgba(148, 163, 184, 0.22) !important;
 }
 
 @media (prefers-reduced-motion: reduce) {
   progress.loading-spinner:indeterminate {
     --_used-spinner-duration: 6s;
+  }
+  .ambient-orb {
+    animation-duration: 90s !important;
   }
   .page-enter,
   .stagger-item,

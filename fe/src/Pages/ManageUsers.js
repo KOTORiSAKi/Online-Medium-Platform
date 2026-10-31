@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { usePopup } from "../context/PopupContext";
+import LiquidGlassCard from "../LiquidGlassCard";
 
 function ManageUsers() {
   const { showAlert, showConfirm } = usePopup();
@@ -167,27 +168,35 @@ function ManageUsers() {
       className="page-enter"
       style={{ maxWidth: "1020px", margin: "1.5rem auto", padding: "1.5rem" }}
     >
-      <h2 style={{ marginTop: 0, color: "#0f172a" }}>
-        👥 จัดการข้อมูลลูกค้าและผู้ขาย
-      </h2>
+      <LiquidGlassCard
+        borderRadius={20}
+        blurAmount={14}
+        bevelRatio={0.24}
+        className="liquid-glass-surface"
+        style={{ display: "block", width: "100%", marginBottom: "1.5rem" }}
+      >
+        <div style={{ padding: "1.4rem 1.5rem" }}>
+          <h2 style={{ margin: "0 0 1rem 0", color: "#0f172a" }}>
+            👥 จัดการข้อมูลลูกค้าและผู้ขาย
+          </h2>
 
-      <input
-        className="form-input"
-        type="text"
-        placeholder="🔍 ค้นหาชื่อ, นามสกุล, Username หรือ ชื่อร้านค้า..."
-        value={searchText}
-        onChange={(e) => setSearchText(e.target.value)}
-        style={{
-          width: "100%",
-          padding: "0.85rem 1rem",
-          borderRadius: "12px",
-          border: "1px solid #cbd5e1",
-          marginBottom: "1.5rem",
-          boxSizing: "border-box",
-          fontSize: "0.95rem",
-          boxShadow: "var(--shadow-sm)",
-        }}
-      />
+          <input
+            className="form-input"
+            type="text"
+            placeholder="🔍 ค้นหาชื่อ, นามสกุล, Username หรือ ชื่อร้านค้า..."
+            value={searchText}
+            onChange={(e) => setSearchText(e.target.value)}
+            style={{
+              width: "100%",
+              padding: "0.85rem 1rem",
+              borderRadius: "12px",
+              border: "1px solid #cbd5e1",
+              boxSizing: "border-box",
+              fontSize: "0.95rem",
+            }}
+          />
+        </div>
+      </LiquidGlassCard>
 
       {/* User List */}
       {paginatedUsers.map((u, idx) => {
@@ -198,14 +207,11 @@ function ManageUsers() {
         return (
           <div
             key={u.AC_ID}
-            className="stagger-item"
+            className="glass-panel stagger-item"
             style={{
               "--stagger-index": idx,
-              background: "#fff",
               padding: "1.5rem",
               borderRadius: "16px",
-              border: "1px solid #e2e8f0",
-              boxShadow: "var(--shadow-sm)",
               marginBottom: "1.5rem",
             }}
           >
@@ -293,7 +299,7 @@ function ManageUsers() {
                     name="gender"
                     defaultValue={u.GENDER || ""}
                     disabled={!canEdit}
-                    style={{ ...inputStyle, backgroundColor: "#fff" }}
+                    style={inputStyle}
                   >
                     <option value="">ไม่ระบุ</option>
                     <option value="Male">ชาย</option>
@@ -308,7 +314,7 @@ function ManageUsers() {
                     name="type"
                     defaultValue={u.TYPE}
                     disabled={!canEdit}
-                    style={{ ...inputStyle, backgroundColor: "#fff" }}
+                    style={inputStyle}
                   >
                     <option value="Customer">Customer</option>
                     <option value="Seller">Seller</option>
@@ -336,12 +342,11 @@ function ManageUsers() {
             </form>
 
             <div
+              className="glass-subtle"
               style={{
                 marginTop: "1.25rem",
                 padding: "1rem",
-                background: "#f8fafc",
                 borderRadius: "12px",
-                border: "1px solid #e2e8f0",
               }}
             >
               <h4 style={{ margin: "0 0 0.75rem 0", color: "#1e293b" }}>
@@ -379,7 +384,6 @@ function ManageUsers() {
                         padding: "0.45rem 0.65rem",
                         borderRadius: "8px",
                         border: "1px solid #cbd5e1",
-                        backgroundColor: "#fff",
                       }}
                     >
                       <option value="">-- โอนร้านค้านี้ให้คนอื่น --</option>
@@ -449,16 +453,15 @@ function ManageUsers() {
           }}
         >
           <button
-            className="btn-interactive"
+            className="btn-interactive glass-panel"
             onClick={() => handlePageChange(safeCurrentPage - 1)}
             disabled={safeCurrentPage <= 1}
             style={{
               padding: "0.6rem 1.2rem",
-              borderRadius: "8px",
-              border: "1px solid #cbd5e1",
-              background: safeCurrentPage <= 1 ? "#f8fafc" : "#fff",
+              borderRadius: "10px",
               color: safeCurrentPage <= 1 ? "#94a3b8" : "#0f172a",
               cursor: safeCurrentPage <= 1 ? "not-allowed" : "pointer",
+              opacity: safeCurrentPage <= 1 ? 0.6 : 1,
             }}
           >
             ก่อนหน้า
@@ -469,16 +472,15 @@ function ManageUsers() {
           </span>
 
           <button
-            className="btn-interactive"
+            className="btn-interactive glass-panel"
             onClick={() => handlePageChange(safeCurrentPage + 1)}
             disabled={safeCurrentPage >= totalPages}
             style={{
               padding: "0.6rem 1.2rem",
-              borderRadius: "8px",
-              border: "1px solid #cbd5e1",
-              background: safeCurrentPage >= totalPages ? "#f8fafc" : "#fff",
+              borderRadius: "10px",
               color: safeCurrentPage >= totalPages ? "#94a3b8" : "#0f172a",
               cursor: safeCurrentPage >= totalPages ? "not-allowed" : "pointer",
+              opacity: safeCurrentPage >= totalPages ? 0.6 : 1,
             }}
           >
             ถัดไป
@@ -492,7 +494,9 @@ function ManageUsers() {
           style={{
             marginTop: "3rem",
             padding: "1.5rem",
-            background: "#fef2f2",
+            backgroundColor: "#fef2f2",
+            backdropFilter: "blur(14px)",
+            WebkitBackdropFilter: "blur(14px)",
             borderRadius: "16px",
             border: "1px solid #fca5a5",
           }}
@@ -521,7 +525,6 @@ function ManageUsers() {
                   padding: "0.45rem 0.65rem",
                   borderRadius: "8px",
                   border: "1px solid #cbd5e1",
-                  backgroundColor: "#fff",
                 }}
               >
                 <option value="">-- โอนร้านค้านี้ให้ผู้ใช้ --</option>

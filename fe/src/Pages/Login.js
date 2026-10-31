@@ -1,6 +1,7 @@
 import React, { useState } from "react";
 import { useNavigate, Link } from "react-router-dom";
 import { usePopup } from "../context/PopupContext";
+import LiquidGlassCard from "../LiquidGlassCard";
 
 function Login() {
   const { showAlert } = usePopup();
@@ -43,45 +44,53 @@ function Login() {
     <div
       className="page-enter"
       style={{
-        maxWidth: "420px",
+        maxWidth: "430px",
         margin: "3rem auto",
-        padding: "2.25rem",
-        border: "1px solid #e2e8f0",
-        borderRadius: "18px",
-        background: "#ffffff",
-        boxShadow: "var(--shadow-md)",
+        padding: "0 1rem",
       }}
     >
-      <div style={{ textAlign: "center", marginBottom: "1.5rem" }}>
-        <div
-          style={{
-            width: "52px",
-            height: "52px",
-            borderRadius: "14px",
-            backgroundColor: "#eff6ff",
-            color: "#2563eb",
-            display: "inline-flex",
-            alignItems: "center",
-            justifyContent: "center",
-            fontSize: "1.6rem",
-            marginBottom: "0.75rem",
-          }}
-        >
-          🔐
-        </div>
-        <h2 style={{ margin: "0 0 0.35rem 0", color: "#0f172a" }}>
-          เข้าสู่ระบบ
-        </h2>
-        <p
-          style={{
-            margin: 0,
-            color: "#64748b",
-            fontSize: "0.9rem",
-          }}
-        >
-          ยินดีต้อนรับสู่แพลตฟอร์ม MY SHOP
-        </p>
-      </div>
+      <LiquidGlassCard
+        borderRadius={24}
+        blurAmount={14}
+        bevelRatio={0.16}
+        className="liquid-glass-surface"
+        style={{
+          display: "block",
+          width: "100%",
+        }}
+      >
+        <div style={{ padding: "2.35rem 2.25rem" }}>
+          <div style={{ textAlign: "center", marginBottom: "1.5rem" }}>
+            <div
+              style={{
+                width: "54px",
+                height: "54px",
+                borderRadius: "16px",
+                backgroundColor: "rgba(59, 130, 246, 0.16)",
+                border: "1px solid rgba(96, 165, 250, 0.35)",
+                color: "#2563eb",
+                display: "inline-flex",
+                alignItems: "center",
+                justifyContent: "center",
+                fontSize: "1.6rem",
+                marginBottom: "0.75rem",
+              }}
+            >
+              🔐
+            </div>
+            <h2 style={{ margin: "0 0 0.35rem 0", color: "#0f172a" }}>
+              เข้าสู่ระบบ
+            </h2>
+            <p
+              style={{
+                margin: 0,
+                color: "#64748b",
+                fontSize: "0.9rem",
+              }}
+            >
+              ยินดีต้อนรับสู่แพลตฟอร์ม MY SHOP
+            </p>
+          </div>
 
       {errorMsg && (
         <div
@@ -228,7 +237,7 @@ function Login() {
           textAlign: "center",
           marginTop: "1.5rem",
           paddingTop: "1.25rem",
-          borderTop: "1px solid #e2e8f0",
+          borderTop: "1px solid rgba(148, 163, 184, 0.25)",
         }}
       >
         <span style={{ color: "#64748b", fontSize: "0.9rem" }}>
@@ -245,6 +254,8 @@ function Login() {
           สมัครสมาชิกที่นี่
         </Link>
       </div>
+        </div>
+      </LiquidGlassCard>
     </div>
   );
 }

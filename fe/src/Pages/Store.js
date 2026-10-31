@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback } from "react";
 import { useParams, Link, useNavigate } from "react-router-dom";
+import LiquidGlassCard from "../LiquidGlassCard";
 
 function Store() {
   const { stId } = useParams();
@@ -254,18 +255,24 @@ function Store() {
       </button>
 
       {/* ป้ายข้อมูลร้านค้า (Store Banner & Profile Card) */}
-      <div
+      <LiquidGlassCard
+        borderRadius={22}
+        blurAmount={14}
+        bevelRatio={0.18}
+        className="liquid-glass-surface"
         style={{
-          backgroundColor: "#ffffff",
-          borderRadius: "16px",
-          border: isOpen ? "1px solid #e2e8f0" : "2px solid #fca5a5",
-          padding: "2rem",
-          boxShadow: "0 4px 12px rgba(0,0,0,0.04)",
+          display: "block",
+          width: "100%",
           marginBottom: "2rem",
-          position: "relative",
-          overflow: "hidden",
+          border: isOpen ? undefined : "2px solid #fca5a5",
         }}
       >
+        <div
+          style={{
+            padding: "2rem",
+            position: "relative",
+          }}
+        >
         <div
           style={{
             position: "absolute",
@@ -391,11 +398,10 @@ function Store() {
             }}
           >
             <div
+              className="glass-subtle"
               style={{
-                backgroundColor: "#f8fafc",
                 padding: "0.75rem 1.25rem",
                 borderRadius: "12px",
-                border: "1px solid #e2e8f0",
                 textAlign: "center",
                 minWidth: "110px",
               }}
@@ -425,11 +431,10 @@ function Store() {
             </div>
 
             <div
+              className="glass-subtle"
               style={{
-                backgroundColor: "#f8fafc",
                 padding: "0.75rem 1.25rem",
                 borderRadius: "12px",
-                border: "1px solid #e2e8f0",
                 textAlign: "center",
                 minWidth: "110px",
               }}
@@ -459,11 +464,10 @@ function Store() {
             </div>
 
             <div
+              className="glass-subtle"
               style={{
-                backgroundColor: "#f8fafc",
                 padding: "0.75rem 1.25rem",
                 borderRadius: "12px",
-                border: "1px solid #e2e8f0",
                 textAlign: "center",
                 minWidth: "110px",
               }}
@@ -594,12 +598,10 @@ function Store() {
               </Link>
               <Link
                 to="/profile"
-                className="btn-interactive"
+                className="btn-interactive glass-subtle"
                 style={{
                   padding: "0.45rem 0.9rem",
-                  backgroundColor: "#f1f5f9",
                   color: "#475569",
-                  border: "1px solid #cbd5e1",
                   borderRadius: "8px",
                   textDecoration: "none",
                   fontWeight: "bold",
@@ -611,92 +613,99 @@ function Store() {
             </div>
           )}
         </div>
-      </div>
+        </div>
+      </LiquidGlassCard>
 
       {/* ส่วนแสดงสินค้าทั้งหมดของร้าน (Products Section) */}
-      <div
+      <LiquidGlassCard
+        borderRadius={18}
+        blurAmount={14}
+        bevelRatio={0.26}
+        className="liquid-glass-surface"
         style={{
-          display: "flex",
-          justifyContent: "space-between",
-          alignItems: "center",
-          flexWrap: "wrap",
-          gap: "1rem",
+          display: "block",
+          width: "100%",
           marginBottom: "1.5rem",
-          backgroundColor: "#ffffff",
-          padding: "1rem 1.25rem",
-          borderRadius: "14px",
-          border: "1px solid #e2e8f0",
-          boxShadow: "0 2px 6px rgba(0,0,0,0.03)",
         }}
       >
-        <div>
-          <h2 style={{ margin: 0, fontSize: "1.25rem", color: "#0f172a" }}>
-            🛍️ สินค้าทั้งหมดของร้าน ({products.length} ชิ้น)
-          </h2>
-          <p
-            style={{
-              margin: "0.25rem 0 0 0",
-              color: "#64748b",
-              fontSize: "0.82rem",
-            }}
-          >
-            ค้นหาและเลือกชมสินค้าคุณภาพจากร้าน {store.ST_NAME}
-          </p>
-        </div>
-
         <div
           style={{
             display: "flex",
+            justifyContent: "space-between",
             alignItems: "center",
-            gap: "0.5rem",
             flexWrap: "wrap",
+            gap: "1rem",
+            padding: "1.05rem 1.35rem",
           }}
         >
-          <input
-            type="text"
-            placeholder="🔍 ค้นหาสินค้าในร้าน..."
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            className="form-input"
-            style={{
-              padding: "0.45rem 0.85rem",
-              fontSize: "0.85rem",
-              width: "210px",
-            }}
-          />
+          <div>
+            <h2 style={{ margin: 0, fontSize: "1.25rem", color: "#0f172a" }}>
+              🛍️ สินค้าทั้งหมดของร้าน ({products.length} ชิ้น)
+            </h2>
+            <p
+              style={{
+                margin: "0.25rem 0 0 0",
+                color: "#64748b",
+                fontSize: "0.82rem",
+              }}
+            >
+              ค้นหาและเลือกชมสินค้าคุณภาพจากร้าน {store.ST_NAME}
+            </p>
+          </div>
 
-          <select
-            value={sortBy}
-            onChange={(e) => setSortBy(e.target.value)}
+          <div
             style={{
-              padding: "0.45rem 0.8rem",
-              borderRadius: "10px",
-              border: "1px solid #cbd5e1",
-              backgroundColor: "#ffffff",
-              color: "#334155",
-              fontSize: "0.85rem",
-              fontWeight: "500",
-              cursor: "pointer",
-              outline: "none",
+              display: "flex",
+              alignItems: "center",
+              gap: "0.5rem",
+              flexWrap: "wrap",
             }}
           >
-            <option value="default">สินค้าล่าสุด</option>
-            <option value="rating">⭐ เรตติ้งสินค้าสูงสุด</option>
-            <option value="price-asc">💵 ราคา: ต่ำสุด → สูงสุด</option>
-            <option value="price-desc">💵 ราคา: สูงสุด → ต่ำสุด</option>
-          </select>
+            <input
+              type="text"
+              placeholder="🔍 ค้นหาสินค้าในร้าน..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="form-input"
+              style={{
+                padding: "0.45rem 0.85rem",
+                fontSize: "0.85rem",
+                width: "210px",
+              }}
+            />
+
+            <select
+              className="form-input"
+              value={sortBy}
+              onChange={(e) => setSortBy(e.target.value)}
+              style={{
+                width: "auto",
+                padding: "0.45rem 0.8rem",
+                borderRadius: "10px",
+                color: "#334155",
+                fontSize: "0.85rem",
+                fontWeight: "500",
+                cursor: "pointer",
+                outline: "none",
+              }}
+            >
+              <option value="default">สินค้าล่าสุด</option>
+              <option value="rating">⭐ เรตติ้งสินค้าสูงสุด</option>
+              <option value="price-asc">💵 ราคา: ต่ำสุด → สูงสุด</option>
+              <option value="price-desc">💵 ราคา: สูงสุด → ต่ำสุด</option>
+            </select>
+          </div>
         </div>
-      </div>
+      </LiquidGlassCard>
 
       {/* รายการสินค้าในร้าน */}
       {displayedProducts.length === 0 ? (
         <div
+          className="glass-panel"
           style={{
             padding: "3.5rem 1.5rem",
             textAlign: "center",
-            backgroundColor: "#ffffff",
-            borderRadius: "16px",
-            border: "1px dashed #cbd5e1",
+            borderRadius: "18px",
             marginTop: "1rem",
           }}
         >
@@ -759,14 +768,14 @@ function Store() {
                       ? "2px solid #ef4444"
                       : isOutOfStock
                         ? "1.5px solid #fca5a5"
-                        : "1px solid #e2e8f0",
-                    borderRadius: "14px",
+                        : "1px solid rgba(255, 255, 255, 0.8)",
+                    borderRadius: "16px",
                     overflow: "hidden",
                     backgroundColor: isClosed
-                      ? "#fef2f2"
+                      ? "rgba(254, 242, 242, 0.78)"
                       : isOutOfStock
-                        ? "#fffdfd"
-                        : "#fff",
+                        ? "rgba(255, 250, 250, 0.66)"
+                        : "rgba(255, 255, 255, 0.68)",
                     position: "relative",
                     display: "flex",
                     flexDirection: "column",
@@ -950,13 +959,11 @@ function Store() {
           {/* ส่วนควบคุมการแบ่งหน้า (Pagination Controls) */}
           {totalItems > 0 && (
             <div
+              className="glass-panel"
               style={{
                 marginTop: "2.5rem",
                 padding: "1rem 1.5rem",
-                backgroundColor: "#ffffff",
-                borderRadius: "14px",
-                border: "1px solid #e2e8f0",
-                boxShadow: "0 2px 6px rgba(0,0,0,0.03)",
+                borderRadius: "16px",
                 display: "flex",
                 justifyContent: "space-between",
                 alignItems: "center",

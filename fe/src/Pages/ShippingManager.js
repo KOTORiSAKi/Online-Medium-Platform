@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { usePopup } from "../context/PopupContext";
+import LiquidGlassCard from "../LiquidGlassCard";
 
 const ShippingManager = () => {
   const { showAlert } = usePopup();
@@ -67,18 +68,15 @@ const ShippingManager = () => {
   };
 
   const cardStyle = {
-    backgroundColor: "#ffffff",
     borderRadius: "16px",
-    border: "1px solid #e2e8f0",
-    boxShadow: "var(--shadow-sm)",
     overflow: "hidden",
     marginBottom: "2.25rem",
   };
 
   const thStyle = {
     padding: "0.9rem 1.15rem",
-    backgroundColor: "#f8fafc",
-    borderBottom: "1px solid #e2e8f0",
+    backgroundColor: "rgba(248, 250, 252, 0.45)",
+    borderBottom: "1px solid rgba(148, 163, 184, 0.24)",
     color: "#334155",
     fontSize: "0.88rem",
     fontWeight: "700",
@@ -86,7 +84,7 @@ const ShippingManager = () => {
 
   const tdStyle = {
     padding: "0.85rem 1.15rem",
-    borderBottom: "1px solid #f1f5f9",
+    borderBottom: "1px solid rgba(148, 163, 184, 0.16)",
     color: "#1e293b",
     fontSize: "0.92rem",
   };
@@ -116,23 +114,30 @@ const ShippingManager = () => {
       className="page-enter"
       style={{ padding: "2rem", maxWidth: "1020px", margin: "0 auto" }}
     >
-      <div style={{ marginBottom: "2rem" }}>
-        <h1 style={{ margin: "0 0 0.4rem 0", color: "#0f172a" }}>
-          ⚙️ จัดการระบบคำนวณค่าจัดส่ง
-        </h1>
-        <p style={{ margin: 0, color: "#64748b", fontSize: "0.95rem" }}>
-          ปรับแต่งเรทราคาที่ใช้ในการคำนวณค่าจัดส่งอัตโนมัติ (Tier-based
-          Shipping)
-        </p>
-      </div>
+      <LiquidGlassCard
+        borderRadius={20}
+        blurAmount={14}
+        bevelRatio={0.26}
+        className="liquid-glass-surface"
+        style={{ display: "block", width: "100%", marginBottom: "2rem" }}
+      >
+        <div style={{ padding: "1.35rem 1.6rem" }}>
+          <h1 style={{ margin: "0 0 0.4rem 0", color: "#0f172a" }}>
+            ⚙️ จัดการระบบคำนวณค่าจัดส่ง
+          </h1>
+          <p style={{ margin: 0, color: "#64748b", fontSize: "0.95rem" }}>
+            ปรับแต่งเรทราคาที่ใช้ในการคำนวณค่าจัดส่งอัตโนมัติ (Tier-based
+            Shipping)
+          </p>
+        </div>
+      </LiquidGlassCard>
 
       {/* 1. Size Tiers */}
-      <section className="stagger-item" style={{ ...cardStyle, "--stagger-index": 0 }}>
+      <section className="glass-panel stagger-item" style={{ ...cardStyle, "--stagger-index": 0 }}>
         <div
           style={{
             padding: "1.1rem 1.25rem",
-            borderBottom: "1px solid #e2e8f0",
-            backgroundColor: "#ffffff",
+            borderBottom: "1px solid rgba(148, 163, 184, 0.22)",
           }}
         >
           <h2 style={{ margin: 0, fontSize: "1.15rem", color: "#0f172a" }}>
@@ -226,12 +231,11 @@ const ShippingManager = () => {
       </section>
 
       {/* 2. Weight Tiers */}
-      <section className="stagger-item" style={{ ...cardStyle, "--stagger-index": 1 }}>
+      <section className="glass-panel stagger-item" style={{ ...cardStyle, "--stagger-index": 1 }}>
         <div
           style={{
             padding: "1.1rem 1.25rem",
-            borderBottom: "1px solid #e2e8f0",
-            backgroundColor: "#ffffff",
+            borderBottom: "1px solid rgba(148, 163, 184, 0.22)",
           }}
         >
           <h2 style={{ margin: 0, fontSize: "1.15rem", color: "#0f172a" }}>
@@ -325,12 +329,11 @@ const ShippingManager = () => {
       </section>
 
       {/* 3. Route Fees */}
-      <section className="stagger-item" style={{ ...cardStyle, "--stagger-index": 2 }}>
+      <section className="glass-panel stagger-item" style={{ ...cardStyle, "--stagger-index": 2 }}>
         <div
           style={{
             padding: "1.1rem 1.25rem",
-            borderBottom: "1px solid #e2e8f0",
-            backgroundColor: "#ffffff",
+            borderBottom: "1px solid rgba(148, 163, 184, 0.22)",
           }}
         >
           <h2 style={{ margin: 0, fontSize: "1.15rem", color: "#0f172a" }}>

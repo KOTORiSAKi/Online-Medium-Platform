@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { useNavigate, Link } from "react-router-dom";
+import LiquidGlassCard from "../LiquidGlassCard";
 
 function OrderHistory() {
   const navigate = useNavigate();
@@ -41,10 +42,9 @@ function OrderHistory() {
         {Array.from({ length: 3 }).map((_, idx) => (
           <div
             key={idx}
+            className="glass-panel"
             style={{
-              backgroundColor: "#ffffff",
               borderRadius: "14px",
-              border: "1px solid #e2e8f0",
               padding: "1.5rem",
               marginBottom: "1rem",
             }}
@@ -72,58 +72,63 @@ function OrderHistory() {
       className="page-enter"
       style={{ padding: "2rem", maxWidth: "900px", margin: "0 auto" }}
     >
-      <div
-        style={{
-          display: "flex",
-          justifyContent: "space-between",
-          alignItems: "center",
-          marginBottom: "1.5rem",
-          flexWrap: "wrap",
-          gap: "1rem",
-        }}
+      <LiquidGlassCard
+        borderRadius={20}
+        blurAmount={14}
+        bevelRatio={0.26}
+        className="liquid-glass-surface"
+        style={{ display: "block", width: "100%", marginBottom: "1.5rem" }}
       >
-        <div>
-          <h1 style={{ margin: 0, fontSize: "1.65rem", color: "#0f172a" }}>
-            📋 ประวัติการสั่งซื้อสำเร็จ
-          </h1>
-          <p
-            style={{
-              margin: "0.25rem 0 0 0",
-              color: "#64748b",
-              fontSize: "0.9rem",
-            }}
-          >
-            รายการคำสั่งซื้อที่คุณได้รับสินค้าและให้คะแนนรีวิวเรียบร้อยแล้ว (
-            {historyOrders.length} รายการ)
-          </p>
-        </div>
-        <button
-          type="button"
-          onClick={() => navigate("/market")}
-          className="btn-interactive"
+        <div
           style={{
-            padding: "0.55rem 1.1rem",
-            backgroundColor: "#ffffff",
-            border: "1px solid #cbd5e1",
-            borderRadius: "10px",
-            color: "#334155",
-            fontWeight: "600",
-            fontSize: "0.88rem",
-            cursor: "pointer",
+            display: "flex",
+            justifyContent: "space-between",
+            alignItems: "center",
+            padding: "1.25rem 1.5rem",
+            flexWrap: "wrap",
+            gap: "1rem",
           }}
         >
-          ← กลับไปหน้าการสั่งซื้อ
-        </button>
-      </div>
+          <div>
+            <h1 style={{ margin: 0, fontSize: "1.65rem", color: "#0f172a" }}>
+              📋 ประวัติการสั่งซื้อสำเร็จ
+            </h1>
+            <p
+              style={{
+                margin: "0.25rem 0 0 0",
+                color: "#64748b",
+                fontSize: "0.9rem",
+              }}
+            >
+              รายการคำสั่งซื้อที่คุณได้รับสินค้าและให้คะแนนรีวิวเรียบร้อยแล้ว (
+              {historyOrders.length} รายการ)
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={() => navigate("/market")}
+            className="btn-interactive glass-subtle"
+            style={{
+              padding: "0.55rem 1.1rem",
+              borderRadius: "10px",
+              color: "#334155",
+              fontWeight: "600",
+              fontSize: "0.88rem",
+              cursor: "pointer",
+            }}
+          >
+            ← กลับไปหน้าการสั่งซื้อ
+          </button>
+        </div>
+      </LiquidGlassCard>
 
       {historyOrders.length === 0 ? (
         <div
+          className="glass-panel"
           style={{
             textAlign: "center",
             padding: "3.5rem 1.5rem",
-            backgroundColor: "#ffffff",
             borderRadius: "16px",
-            border: "1px dashed #cbd5e1",
             color: "#64748b",
           }}
         >
@@ -158,8 +163,8 @@ function OrderHistory() {
             className="product-card stagger-item"
             style={{
               animationDelay: `${idx * 45}ms`,
-              backgroundColor: "white",
-              border: "1px solid #e2e8f0",
+              backgroundColor: "rgba(255, 255, 255, 0.68)",
+              border: "1px solid rgba(255, 255, 255, 0.8)",
               borderRadius: "14px",
               padding: "1.5rem",
               marginBottom: "1.1rem",
@@ -230,9 +235,9 @@ function OrderHistory() {
             </div>
 
             <div
+              className="glass-subtle"
               style={{
                 marginBottom: "1rem",
-                backgroundColor: "#f8fafc",
                 padding: "0.85rem 1rem",
                 borderRadius: "10px",
               }}

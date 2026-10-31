@@ -1,6 +1,7 @@
 import React, { useState } from "react";
 import { useNavigate, Link } from "react-router-dom";
 import { usePopup } from "../context/PopupContext";
+import LiquidGlassCard from "../LiquidGlassCard";
 
 function Register() {
   const { showAlert } = usePopup();
@@ -51,23 +52,30 @@ function Register() {
     <div
       className="page-enter"
       style={{
-        maxWidth: "620px",
+        maxWidth: "640px",
         margin: "2.5rem auto",
-        padding: "2.25rem",
-        border: "1px solid #e2e8f0",
-        borderRadius: "18px",
-        background: "#ffffff",
-        boxShadow: "var(--shadow-md)",
+        padding: "0 1rem",
       }}
     >
-      <div style={{ textAlign: "center", marginBottom: "1.25rem" }}>
-        <h2 style={{ margin: "0 0 0.35rem 0", color: "#0f172a" }}>
-          📝 สมัครสมาชิกใหม่
-        </h2>
-        <p style={{ margin: 0, color: "#64748b", fontSize: "0.9rem" }}>
-          สร้างบัญชีเพื่อเริ่มต้นช้อปปิ้งหรือเปิดร้านค้าของคุณ
-        </p>
-      </div>
+      <LiquidGlassCard
+        borderRadius={24}
+        blurAmount={14}
+        bevelRatio={0.14}
+        className="liquid-glass-surface"
+        style={{
+          display: "block",
+          width: "100%",
+        }}
+      >
+        <div style={{ padding: "2.25rem" }}>
+          <div style={{ textAlign: "center", marginBottom: "1.25rem" }}>
+            <h2 style={{ margin: "0 0 0.35rem 0", color: "#0f172a" }}>
+              📝 สมัครสมาชิกใหม่
+            </h2>
+            <p style={{ margin: 0, color: "#64748b", fontSize: "0.9rem" }}>
+              สร้างบัญชีเพื่อเริ่มต้นช้อปปิ้งหรือเปิดร้านค้าของคุณ
+            </p>
+          </div>
 
       {/* กล่องโชว์ Error สีแดง */}
       {serverError && (
@@ -222,8 +230,7 @@ function Register() {
               padding: "0.7rem 0.9rem",
               flex: 1,
               borderRadius: "10px",
-              border: "1px solid #cbd5e1",
-              backgroundColor: "#fff",
+              border: "1px solid rgba(148, 163, 184, 0.4)",
             }}
           >
             <option value="">ระบุเพศ (GENDER)</option>
@@ -287,8 +294,7 @@ function Register() {
                 marginTop: "0.35rem",
                 boxSizing: "border-box",
                 borderRadius: "10px",
-                border: "1px solid #cbd5e1",
-                backgroundColor: "#fff",
+                border: "1px solid rgba(148, 163, 184, 0.4)",
               }}
             >
               <option value="Customer">ฝ่ายซื้อ (Customer)</option>
@@ -335,7 +341,7 @@ function Register() {
           textAlign: "center",
           marginTop: "1.25rem",
           paddingTop: "1.25rem",
-          borderTop: "1px solid #e2e8f0",
+          borderTop: "1px solid rgba(148, 163, 184, 0.25)",
         }}
       >
         <Link
@@ -349,6 +355,8 @@ function Register() {
           มีบัญชีอยู่แล้ว? เข้าสู่ระบบที่นี่
         </Link>
       </div>
+        </div>
+      </LiquidGlassCard>
     </div>
   );
 }

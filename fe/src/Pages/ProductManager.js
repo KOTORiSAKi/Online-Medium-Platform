@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback } from "react";
 import { useParams, useNavigate, Link } from "react-router-dom";
 import { usePopup } from "../context/PopupContext";
+import LiquidGlassCard from "../LiquidGlassCard";
 
 function ProductManager() {
   const { showAlert, showConfirm } = usePopup();
@@ -248,60 +249,66 @@ function ProductManager() {
     <div className="page-enter" style={{ padding: "2rem", maxWidth: "1000px", margin: "0 auto", color: "#1e293b" }}>
 
       {/* ส่วนหัวแสดงข้อมูลร้านค้า */}
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "1.5rem", flexWrap: "wrap", gap: "1rem" }}>
-        <div>
-          <Link to="/profile" style={{ color: "#64748b", textDecoration: "none", fontSize: "0.9rem" }}>
-            ← กลับหน้าจัดการโปรไฟล์
-          </Link>
-          <h1 style={{ margin: "0.5rem 0 0 0", fontSize: "1.6rem" }}>
-            📦 จัดการสินค้า: {store?.ST_NAME} <span style={{ fontSize: "1rem", color: "#64748b" }}>#{store?.ST_ID}</span>
-          </h1>
-          <p style={{ margin: "0.25rem 0 0 0", color: "#64748b", fontSize: "0.85rem" }}>
-            📍 ที่ตั้งร้าน: {store?.ADDRESS_LINE ? `${store.ADDRESS_LINE} ${store.SUB_DISTRICT || ""} ${store.DISTRICT || ""} ${store.PROVINCE || ""} ${store.ZIP_CODE || ""}`.trim() : (store?.LOCATION || (store?.ADDRESS_ID ? `รหัสที่อยู่ #${store.ADDRESS_ID}` : "ไม่ระบุที่อยู่"))} • สถานะร้าน:{" "}
-            <strong style={{ color: store?.IS_OPEN === "Y" ? "#16a34a" : "#dc2626" }}>
-              {store?.IS_OPEN === "Y" ? "🟢 เปิดให้บริการ" : "🔴 ปิดให้บริการ"}
-            </strong>
-          </p>
-        </div>
+      <LiquidGlassCard
+        borderRadius={20}
+        blurAmount={14}
+        bevelRatio={0.24}
+        className="liquid-glass-surface"
+        style={{ display: "block", width: "100%", marginBottom: "1.5rem" }}
+      >
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "1.35rem 1.5rem", flexWrap: "wrap", gap: "1rem" }}>
+          <div>
+            <Link to="/profile" style={{ color: "#64748b", textDecoration: "none", fontSize: "0.9rem" }}>
+              ← กลับหน้าจัดการโปรไฟล์
+            </Link>
+            <h1 style={{ margin: "0.5rem 0 0 0", fontSize: "1.6rem" }}>
+              📦 จัดการสินค้า: {store?.ST_NAME} <span style={{ fontSize: "1rem", color: "#64748b" }}>#{store?.ST_ID}</span>
+            </h1>
+            <p style={{ margin: "0.25rem 0 0 0", color: "#64748b", fontSize: "0.85rem" }}>
+              📍 ที่ตั้งร้าน: {store?.ADDRESS_LINE ? `${store.ADDRESS_LINE} ${store.SUB_DISTRICT || ""} ${store.DISTRICT || ""} ${store.PROVINCE || ""} ${store.ZIP_CODE || ""}`.trim() : (store?.LOCATION || (store?.ADDRESS_ID ? `รหัสที่อยู่ #${store.ADDRESS_ID}` : "ไม่ระบุที่อยู่"))} • สถานะร้าน:{" "}
+              <strong style={{ color: store?.IS_OPEN === "Y" ? "#16a34a" : "#dc2626" }}>
+                {store?.IS_OPEN === "Y" ? "🟢 เปิดให้บริการ" : "🔴 ปิดให้บริการ"}
+              </strong>
+            </p>
+          </div>
 
-        <div style={{ display: "flex", gap: "0.5rem" }}>
-          <button
-            className="btn-interactive"
-            onClick={handleOpenEditStore}
-            style={{
-              padding: "0.65rem 1rem",
-              backgroundColor: "#f1f5f9",
-              color: "#1e293b",
-              border: "1px solid #cbd5e1",
-              borderRadius: "8px",
-              fontWeight: "bold",
-              cursor: "pointer",
-            }}
-          >
-            ✏️ แก้ไขชื่อ/ที่ตั้งร้าน
-          </button>
-          <button
-            className="btn-interactive"
-            onClick={handleOpenAddModal}
-            style={{
-              padding: "0.65rem 1.25rem",
-              backgroundColor: "#2563eb",
-              color: "white",
-              border: "none",
-              borderRadius: "8px",
-              fontWeight: "bold",
-              cursor: "pointer",
-              boxShadow: "0 2px 4px rgba(37, 99, 235, 0.2)",
-            }}
-          >
-            ➕ เพิ่มสินค้าใหม่
-          </button>
+          <div style={{ display: "flex", gap: "0.5rem" }}>
+            <button
+              className="btn-interactive glass-subtle"
+              onClick={handleOpenEditStore}
+              style={{
+                padding: "0.65rem 1rem",
+                color: "#1e293b",
+                borderRadius: "8px",
+                fontWeight: "bold",
+                cursor: "pointer",
+              }}
+            >
+              ✏️ แก้ไขชื่อ/ที่ตั้งร้าน
+            </button>
+            <button
+              className="btn-interactive"
+              onClick={handleOpenAddModal}
+              style={{
+                padding: "0.65rem 1.25rem",
+                backgroundColor: "#2563eb",
+                color: "white",
+                border: "none",
+                borderRadius: "8px",
+                fontWeight: "bold",
+                cursor: "pointer",
+                boxShadow: "0 2px 4px rgba(37, 99, 235, 0.2)",
+              }}
+            >
+              ➕ เพิ่มสินค้าใหม่
+            </button>
+          </div>
         </div>
-      </div>
+      </LiquidGlassCard>
 
       {/* รายการสินค้าทั้งหมดในร้าน */}
       {products.length === 0 ? (
-        <div style={{ padding: "3rem", textAlign: "center", backgroundColor: "#ffffff", borderRadius: "12px", border: "1px dashed #cbd5e1" }}>
+        <div className="glass-panel" style={{ padding: "3rem", textAlign: "center", borderRadius: "16px" }}>
           <p style={{ color: "#64748b", fontSize: "1.1rem" }}>ร้านนี้ยังไม่มีสินค้าวางจำหน่าย</p>
           <button
             className="btn-interactive"
@@ -319,9 +326,9 @@ function ProductManager() {
               className="product-card stagger-item"
               style={{
                 "--stagger-index": idx,
-                backgroundColor: "#ffffff",
+                backgroundColor: "rgba(255, 255, 255, 0.68)",
                 borderRadius: "14px",
-                border: "1px solid #e2e8f0",
+                border: "1px solid rgba(255, 255, 255, 0.8)",
                 overflow: "hidden",
                 display: "flex",
                 flexDirection: "column",
@@ -422,14 +429,12 @@ function ProductManager() {
           <div
             className="modal-content"
             style={{
-              backgroundColor: "#ffffff",
               padding: "2rem",
               borderRadius: "16px",
               width: "100%",
               maxWidth: "560px",
               maxHeight: "90vh",
-              overflowY: "auto",
-              boxShadow: "0 20px 25px -5px rgba(0, 0, 0, 0.2)"
+              overflowY: "auto"
             }}
           >
             <h2 style={{ margin: "0 0 1rem 0", fontSize: "1.3rem" }}>
@@ -588,12 +593,10 @@ function ProductManager() {
           <div
             className="modal-content"
             style={{
-              backgroundColor: "#ffffff",
               padding: "2rem",
               borderRadius: "16px",
               width: "100%",
-              maxWidth: "460px",
-              boxShadow: "0 20px 25px -5px rgba(0, 0, 0, 0.2)"
+              maxWidth: "460px"
             }}
           >
             <h3 style={{ margin: "0 0 0.5rem 0", fontSize: "1.25rem" }}>✏️ แก้ไขข้อมูลร้านค้า #{stId}</h3>

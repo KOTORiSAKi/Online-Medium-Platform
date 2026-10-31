@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { usePopup } from "../context/PopupContext";
+import LiquidGlassCard from "../LiquidGlassCard";
 
 function Profile() {
   const { showAlert, showConfirm } = usePopup();
@@ -543,27 +544,25 @@ function Profile() {
       {/* ==================================================== */}
       {/* 1. การ์ดแสดงข้อมูลส่วนตัวบัญชี (ตามตาราง ACCOUNT) */}
       {/* ==================================================== */}
-      <div
-        style={{
-          padding: "2rem",
-          backgroundColor: "#ffffff",
-          borderRadius: "16px",
-          border: "1px solid #e2e8f0",
-          boxShadow: "0 4px 6px -1px rgba(0, 0, 0, 0.05)",
-          marginBottom: "2rem",
-        }}
+      <LiquidGlassCard
+        borderRadius={22}
+        blurAmount={14}
+        bevelRatio={0.16}
+        className="liquid-glass-surface"
+        style={{ display: "block", width: "100%", marginBottom: "2rem" }}
       >
-        <div
-          style={{
-            display: "flex",
-            justifyContent: "space-between",
-            alignItems: "flex-start",
-            flexWrap: "wrap",
-            gap: "1rem",
-            borderBottom: "1px solid #f1f5f9",
-            paddingBottom: "1.5rem",
-          }}
-        >
+        <div style={{ padding: "2rem" }}>
+          <div
+            style={{
+              display: "flex",
+              justifyContent: "space-between",
+              alignItems: "flex-start",
+              flexWrap: "wrap",
+              gap: "1rem",
+              borderBottom: "1px solid rgba(148, 163, 184, 0.25)",
+              paddingBottom: "1.5rem",
+            }}
+          >
           <div>
             <div
               style={{
@@ -756,16 +755,17 @@ function Profile() {
             </strong>
           </div>
         </div>
-      </div>
+        </div>
+      </LiquidGlassCard>
 
       {/* ==================================================== */}
       {/* 2. ฟอร์มแก้ไขข้อมูลบัญชี */}
       {/* ==================================================== */}
       {editMode && (
         <div
+          className="glass-panel"
           style={{
-            backgroundColor: "#f8fafc",
-            border: "2px dashed #94a3b8",
+            border: "2px dashed rgba(148, 163, 184, 0.55)",
             borderRadius: "16px",
             padding: "2rem",
             marginBottom: "2rem",
@@ -1088,13 +1088,13 @@ function Profile() {
       {/* ==================================================== */}
       {switchRoleOpen && (
         <div
+          className="modal-backdrop"
           style={{
             position: "fixed",
-            top: 0,
-            left: 0,
-            right: 0,
-            bottom: 0,
-            backgroundColor: "rgba(0, 0, 0, 0.5)",
+            inset: 0,
+            backgroundColor: "rgba(15, 23, 42, 0.48)",
+            backdropFilter: "blur(6px)",
+            WebkitBackdropFilter: "blur(6px)",
             display: "flex",
             justifyContent: "center",
             alignItems: "center",
@@ -1102,13 +1102,12 @@ function Profile() {
           }}
         >
           <div
+            className="modal-content"
             style={{
-              backgroundColor: "#ffffff",
               padding: "2rem",
               borderRadius: "16px",
               width: "90%",
               maxWidth: "440px",
-              boxShadow: "0 20px 25px -5px rgba(0, 0, 0, 0.2)",
             }}
           >
             <h3 style={{ margin: 0, fontSize: "1.25rem" }}>
@@ -1209,13 +1208,11 @@ function Profile() {
       {/* 3.5 พื้นที่จัดการที่อยู่ (Address) */}
       {/* ==================================================== */}
       <section
+        className="glass-panel"
         style={{
-          backgroundColor: "#ffffff",
           borderRadius: "16px",
-          border: "1px solid #e2e8f0",
           padding: "2rem",
           marginBottom: "2rem",
-          boxShadow: "0 4px 6px -1px rgba(0, 0, 0, 0.05)",
         }}
       >
         <div
@@ -1241,6 +1238,7 @@ function Profile() {
             </p>
           </div>
           <button
+            className="btn-interactive"
             onClick={() => handleOpenAddressModal()}
             style={{
               padding: "0.5rem 1rem",
@@ -1258,11 +1256,11 @@ function Profile() {
 
         {addresses.length === 0 ? (
           <div
+            className="glass-subtle"
             style={{
               padding: "1.5rem",
               textAlign: "center",
-              backgroundColor: "#f8fafc",
-              borderRadius: "8px",
+              borderRadius: "10px",
               color: "#94a3b8",
             }}
           >
@@ -1280,12 +1278,11 @@ function Profile() {
             {addresses.map((addr) => (
               <div
                 key={addr.ADDRESS_ID}
+                className="glass-subtle"
                 style={{
-                  border: "1px solid #cbd5e1",
-                  borderRadius: "8px",
+                  borderRadius: "10px",
                   padding: "1rem",
                   position: "relative",
-                  backgroundColor: "#f8fafc",
                 }}
               >
                 {addr.IS_DEFAULT === "Y" && (
@@ -1348,13 +1345,13 @@ function Profile() {
       {/* Modal จัดการที่อยู่ */}
       {isAddressModalOpen && (
         <div
+          className="modal-backdrop"
           style={{
             position: "fixed",
-            top: 0,
-            left: 0,
-            right: 0,
-            bottom: 0,
-            backgroundColor: "rgba(0,0,0,0.5)",
+            inset: 0,
+            backgroundColor: "rgba(15, 23, 42, 0.48)",
+            backdropFilter: "blur(6px)",
+            WebkitBackdropFilter: "blur(6px)",
             display: "flex",
             justifyContent: "center",
             alignItems: "center",
@@ -1363,13 +1360,12 @@ function Profile() {
           }}
         >
           <div
+            className="modal-content"
             style={{
-              backgroundColor: "#ffffff",
               padding: "2rem",
               borderRadius: "16px",
               width: "100%",
               maxWidth: "500px",
-              boxShadow: "0 20px 25px -5px rgba(0, 0, 0, 0.2)",
             }}
           >
             <h3 style={{ marginTop: 0, marginBottom: "1rem" }}>
@@ -1619,13 +1615,11 @@ function Profile() {
         isAdminOrEmployee ||
         (user.TYPE === "Customer" && myStores.length > 0)) && (
           <section
+            className="glass-panel"
             style={{
-              backgroundColor: "#ffffff",
               borderRadius: "16px",
-              border: "1px solid #e2e8f0",
               padding: "2rem",
               marginBottom: "2rem",
-              boxShadow: "0 4px 6px -1px rgba(0, 0, 0, 0.05)",
             }}
           >
             {/* หัวข้อตาม Role */}
@@ -1841,11 +1835,11 @@ function Profile() {
                 <p style={{ color: "#64748b" }}>กำลังโหลดข้อมูลร้านค้า... ⏳</p>
               ) : displayedStores.length === 0 ? (
                 <div
+                  className="glass-subtle"
                   style={{
                     padding: "2rem",
                     textAlign: "center",
-                    backgroundColor: "#f8fafc",
-                    borderRadius: "8px",
+                    borderRadius: "10px",
                     color: "#94a3b8",
                   }}
                 >
@@ -2110,102 +2104,112 @@ function Profile() {
       {/* ==================================================== */}
       {/* 5. เมนูสิทธิ์ตาม Role */}
       {/* ==================================================== */}
-      <section
-        style={{
-          backgroundColor: "#ffffff",
-          borderRadius: "16px",
-          border: "1px solid #e2e8f0",
-          padding: "1.5rem",
-          boxShadow: "0 4px 6px -1px rgba(0, 0, 0, 0.05)",
-        }}
+      <LiquidGlassCard
+        borderRadius={20}
+        blurAmount={14}
+        bevelRatio={0.22}
+        className="liquid-glass-surface"
+        style={{ display: "block", width: "100%" }}
       >
-        <h3 style={{ margin: "0 0 1rem 0", fontSize: "1.1rem" }}>
-          📋 เมนูและสิทธิ์การใช้งาน (Role: {user.TYPE})
-        </h3>
-        <div style={{ display: "flex", gap: "0.75rem", flexWrap: "wrap" }}>
-          {user.TYPE === "Admin" && (
+        <section style={{ padding: "1.5rem" }}>
+          <h3 style={{ margin: "0 0 1rem 0", fontSize: "1.1rem" }}>
+            📋 เมนูและสิทธิ์การใช้งาน (Role: {user.TYPE})
+          </h3>
+          <div style={{ display: "flex", gap: "0.75rem", flexWrap: "wrap" }}>
+            {user.TYPE === "Admin" && (
+              <button
+                className="btn-interactive"
+                onClick={() => navigate("/admin/manage-employees")}
+                style={{
+                  padding: "0.75rem 1rem",
+                  background: "#fef3c7",
+                  border: "1px solid #f59e0b",
+                  borderRadius: "8px",
+                  cursor: "pointer",
+                  fontWeight: "600",
+                }}
+              >
+                👨‍💼 จัดการข้อมูลพนักงาน
+              </button>
+            )}
+            {isAdminOrEmployee && (
+              <button
+                className="btn-interactive"
+                onClick={() => navigate("/admin/manage-users")}
+                style={{
+                  padding: "0.75rem 1rem",
+                  background: "#fef3c7",
+                  border: "1px solid #f59e0b",
+                  borderRadius: "8px",
+                  cursor: "pointer",
+                  fontWeight: "600",
+                }}
+              >
+                👥 จัดการข้อมูลลูกค้า/ผู้ขาย
+              </button>
+            )}
+
             <button
-              onClick={() => navigate("/admin/manage-employees")}
+              className="btn-interactive"
+              onClick={() => navigate("/market")}
               style={{
                 padding: "0.75rem 1rem",
-                background: "#fef3c7",
-                border: "1px solid #f59e0b",
+                background: "#e0e7ff",
+                border: "1px solid #6366f1",
                 borderRadius: "8px",
                 cursor: "pointer",
+                fontWeight: "600",
               }}
             >
-              👨‍💼 จัดการข้อมูลพนักงาน
+              🛒 ตะกร้าสินค้าและการสั่งซื้อ
             </button>
-          )}
-          {isAdminOrEmployee && (
+
             <button
-              onClick={() => navigate("/admin/manage-users")}
-              style={{
-                padding: "0.75rem 1rem",
-                background: "#fef3c7",
-                border: "1px solid #f59e0b",
-                borderRadius: "8px",
-                cursor: "pointer",
-              }}
-            >
-              👥 จัดการข้อมูลลูกค้า/ผู้ขาย
-            </button>
-          )}
-
-          <button
-            onClick={() => navigate("/market")}
-            style={{
-              padding: "0.75rem 1rem",
-              background: "#e0e7ff",
-              border: "1px solid #6366f1",
-              borderRadius: "8px",
-              cursor: "pointer",
-            }}
-          >
-            🛒 ตะกร้าสินค้าและการสั่งซื้อ
-          </button>
-
-          <button
-            onClick={() => navigate('/history')}
-            style={{
-              padding: '0.75rem 1rem',
-              background: '#dcfce7',
-              border: '1px solid #10b981',
-              borderRadius: '8px',
-              cursor: 'pointer',
-            }}
-          >
-            📋 ประวัติการสั่งซื้อ
-          </button>
-
-          {user.TYPE === 'Admin' && (
-            <button
-              onClick={() => setDelayModalOpen(true)}
+              className="btn-interactive"
+              onClick={() => navigate('/history')}
               style={{
                 padding: '0.75rem 1rem',
-                background: '#fee2e2',
-                border: '1px solid #ef4444',
+                background: '#dcfce7',
+                border: '1px solid #10b981',
                 borderRadius: '8px',
                 cursor: 'pointer',
+                fontWeight: '600',
               }}
             >
-              ⚙️ จัดการเวลาจัดส่ง (Delay)
+              📋 ประวัติการสั่งซื้อ
             </button>
-          )}
 
-        </div>
-      </section>
+            {user.TYPE === 'Admin' && (
+              <button
+                className="btn-interactive"
+                onClick={() => setDelayModalOpen(true)}
+                style={{
+                  padding: '0.75rem 1rem',
+                  background: '#fee2e2',
+                  border: '1px solid #ef4444',
+                  borderRadius: '8px',
+                  cursor: 'pointer',
+                  fontWeight: '600',
+                }}
+              >
+                ⚙️ จัดการเวลาจัดส่ง (Delay)
+              </button>
+            )}
+
+          </div>
+        </section>
+      </LiquidGlassCard>
 
       {/* Modal แก้ไขชื่อร้านและสถานที่ตั้ง */}
       {editStoreModalOpen && (
         <div
+          className="modal-backdrop"
           style={{
             position: "fixed",
-            top: 0,
-            left: 0,
-            right: 0,
-            bottom: 0,
-            backgroundColor: "rgba(0, 0, 0, 0.5)",
+            inset: 0,
+            backgroundColor: "rgba(15, 23, 42, 0.48)",
+            backdropFilter: "blur(6px)",
+            WebkitBackdropFilter: "blur(6px)",
             display: "flex",
             justifyContent: "center",
             alignItems: "center",
@@ -2214,13 +2218,12 @@ function Profile() {
           }}
         >
           <div
+            className="modal-content"
             style={{
-              backgroundColor: "#ffffff",
               padding: "2rem",
               borderRadius: "16px",
               width: "100%",
               maxWidth: "460px",
-              boxShadow: "0 20px 25px -5px rgba(0, 0, 0, 0.2)",
             }}
           >
             <h3 style={{ margin: "0 0 0.5rem 0", fontSize: "1.25rem" }}>
@@ -2383,24 +2386,25 @@ function Profile() {
       {/* Modal จัดการขนส่งร้านค้า */}
       {shippingModalOpen && currentStoreForShipping && (
         <div
+          className="modal-backdrop"
           style={{
             position: "fixed",
-            top: 0,
-            left: 0,
-            width: "100%",
-            height: "100%",
-            backgroundColor: "rgba(0,0,0,0.5)",
+            inset: 0,
+            backgroundColor: "rgba(15, 23, 42, 0.48)",
+            backdropFilter: "blur(6px)",
+            WebkitBackdropFilter: "blur(6px)",
             display: "flex",
             alignItems: "center",
             justifyContent: "center",
             zIndex: 1000,
+            padding: "1rem",
           }}
         >
           <div
+            className="modal-content"
             style={{
-              backgroundColor: "#fff",
               padding: "2rem",
-              borderRadius: "12px",
+              borderRadius: "16px",
               width: "100%",
               maxWidth: "800px",
               maxHeight: "90vh",
@@ -2423,10 +2427,10 @@ function Profile() {
               {storeShippingServices.map((srv, idx) => (
                 <div
                   key={srv.DVSERVICE_ID}
+                  className="glass-subtle"
                   style={{
-                    border: "1px solid #e2e8f0",
                     padding: "1rem",
-                    borderRadius: "8px",
+                    borderRadius: "10px",
                   }}
                 >
                   <div
@@ -2508,12 +2512,11 @@ function Profile() {
 
             {shippingConfig && (
               <div
+                className="glass-subtle"
                 style={{
                   marginTop: "2rem",
                   padding: "1rem",
-                  backgroundColor: "#f8fafc",
-                  borderRadius: "8px",
-                  border: "1px solid #cbd5e1",
+                  borderRadius: "10px",
                 }}
               >
                 <h3 style={{ marginTop: 0, color: "#334155" }}>
@@ -2618,18 +2621,19 @@ function Profile() {
               }}
             >
               <button
+                className="btn-interactive glass-subtle"
                 onClick={() => setShippingModalOpen(false)}
                 style={{
                   padding: "0.6rem 1.2rem",
-                  border: "1px solid #cbd5e1",
                   borderRadius: "8px",
-                  background: "#fff",
                   cursor: "pointer",
+                  fontWeight: "600",
                 }}
               >
                 ยกเลิก
               </button>
               <button
+                className="btn-interactive"
                 onClick={handleSaveShipping}
                 style={{
                   padding: "0.6rem 1.2rem",
@@ -2649,24 +2653,78 @@ function Profile() {
       )}
 
       {delayModalOpen && (
-        <div style={{
-          position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
-          backgroundColor: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000
-        }}>
-          <div style={{ backgroundColor: 'white', padding: '2rem', borderRadius: '8px', width: '90%', maxWidth: '400px' }}>
+        <div
+          className="modal-backdrop"
+          style={{
+            position: "fixed",
+            inset: 0,
+            backgroundColor: "rgba(15, 23, 42, 0.48)",
+            backdropFilter: "blur(6px)",
+            WebkitBackdropFilter: "blur(6px)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            zIndex: 1000,
+          }}
+        >
+          <div
+            className="modal-content"
+            style={{
+              padding: "2rem",
+              borderRadius: "16px",
+              width: "90%",
+              maxWidth: "400px",
+            }}
+          >
             <h2 style={{ marginTop: 0 }}>⚙️ จัดการเวลาจัดส่ง</h2>
-            <div style={{ marginBottom: '1.5rem' }}>
-              <label style={{ display: 'block', marginBottom: '0.5rem' }}>ระยะเวลาจัดส่งจำลอง (วินาที):</label>
+            <div style={{ marginBottom: "1.5rem" }}>
+              <label style={{ display: "block", marginBottom: "0.5rem" }}>
+                ระยะเวลาจัดส่งจำลอง (วินาที):
+              </label>
               <input
                 type="number"
+                className="form-input"
                 value={shippingDelaySec}
-                onChange={e => setShippingDelaySec(e.target.value)}
-                style={{ width: '100%', padding: '0.75rem', borderRadius: '6px', border: '1px solid #cbd5e1' }}
+                onChange={(e) => setShippingDelaySec(e.target.value)}
+                style={{
+                  width: "100%",
+                  padding: "0.75rem",
+                  borderRadius: "8px",
+                  border: "1px solid #cbd5e1",
+                  boxSizing: "border-box",
+                }}
               />
             </div>
-            <div style={{ display: 'flex', gap: '1rem' }}>
-              <button onClick={() => setDelayModalOpen(false)} style={{ flex: 1, padding: '0.75rem', border: '1px solid #cbd5e1', backgroundColor: 'white', borderRadius: '6px', cursor: 'pointer' }}>ยกเลิก</button>
-              <button onClick={saveDelay} style={{ flex: 1, padding: '0.75rem', border: 'none', backgroundColor: '#3b82f6', color: 'white', borderRadius: '6px', cursor: 'pointer' }}>บันทึก</button>
+            <div style={{ display: "flex", gap: "1rem" }}>
+              <button
+                className="btn-interactive glass-subtle"
+                onClick={() => setDelayModalOpen(false)}
+                style={{
+                  flex: 1,
+                  padding: "0.75rem",
+                  borderRadius: "8px",
+                  cursor: "pointer",
+                  fontWeight: "600",
+                }}
+              >
+                ยกเลิก
+              </button>
+              <button
+                className="btn-interactive"
+                onClick={saveDelay}
+                style={{
+                  flex: 1,
+                  padding: "0.75rem",
+                  border: "none",
+                  backgroundColor: "#3b82f6",
+                  color: "white",
+                  borderRadius: "8px",
+                  cursor: "pointer",
+                  fontWeight: "bold",
+                }}
+              >
+                บันทึก
+              </button>
             </div>
           </div>
         </div>

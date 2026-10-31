@@ -160,8 +160,17 @@ export const PopupProvider = ({ children }) => {
               maxWidth: "420px",
               padding: "1.75rem",
               textAlign: "center",
-              backgroundColor: isDark ? "#1e293b" : "#ffffff",
-              borderColor: isDark ? "#334155" : "rgba(226, 232, 240, 0.9)",
+              backgroundColor: isDark
+                ? "rgba(15, 23, 42, 0.8)"
+                : "rgba(255, 255, 255, 0.82)",
+              backdropFilter: "blur(22px) saturate(180%)",
+              WebkitBackdropFilter: "blur(22px) saturate(180%)",
+              borderColor: isDark
+                ? "rgba(148, 163, 184, 0.28)"
+                : "rgba(255, 255, 255, 0.85)",
+              boxShadow: isDark
+                ? "0 20px 44px -8px rgba(0, 0, 0, 0.65), inset 0 1px 0 rgba(255, 255, 255, 0.16)"
+                : "0 18px 42px -8px rgba(15, 23, 42, 0.2), inset 0 1px 0 rgba(255, 255, 255, 0.92)",
             }}
           >
             <div
@@ -285,13 +294,14 @@ export const PopupProvider = ({ children }) => {
               key={toast.id}
               style={{
                 backgroundColor: isDark
-                  ? "rgba(30, 41, 59, 0.96)"
-                  : "rgba(255, 255, 255, 0.96)",
-                backdropFilter: "blur(12px)",
+                  ? "rgba(15, 23, 42, 0.78)"
+                  : "rgba(255, 255, 255, 0.8)",
+                backdropFilter: "blur(18px) saturate(175%)",
+                WebkitBackdropFilter: "blur(18px) saturate(175%)",
                 boxShadow: isDark
-                  ? "0 12px 28px -5px rgba(0, 0, 0, 0.55), 0 4px 12px -2px rgba(0, 0, 0, 0.35)"
-                  : "0 10px 25px -5px rgba(15, 23, 42, 0.15), 0 4px 10px -2px rgba(15, 23, 42, 0.08)",
-                borderRadius: "14px",
+                  ? "0 14px 32px -5px rgba(0, 0, 0, 0.58), 0 4px 12px -2px rgba(0, 0, 0, 0.35), inset 0 1px 0 rgba(255, 255, 255, 0.14)"
+                  : "0 12px 28px -5px rgba(15, 23, 42, 0.14), 0 4px 10px -2px rgba(37, 99, 235, 0.08), inset 0 1px 0 rgba(255, 255, 255, 0.9)",
+                borderRadius: "16px",
                 padding: "14px 16px",
                 minWidth: "290px",
                 maxWidth: "390px",
@@ -299,7 +309,9 @@ export const PopupProvider = ({ children }) => {
                 animation: toast.isLeaving
                   ? "toastSlideOut 0.24s cubic-bezier(0.4, 0, 1, 1) forwards"
                   : "toastSlideIn 0.32s cubic-bezier(0.16, 1, 0.3, 1) forwards",
-                border: isDark ? "1px solid #334155" : "1px solid #e2e8f0",
+                border: isDark
+                  ? "1px solid rgba(148, 163, 184, 0.26)"
+                  : "1px solid rgba(255, 255, 255, 0.82)",
                 borderLeft: `5px solid ${theme.accent}`,
                 position: "relative",
                 overflow: "hidden",

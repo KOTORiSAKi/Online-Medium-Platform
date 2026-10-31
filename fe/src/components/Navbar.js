@@ -98,7 +98,7 @@ function Navbar() {
           });
         }
       })
-      .catch(() => {});
+      .catch(() => { });
   }, []);
 
   // ดักจับการเข้าสู่ระบบของผู้ใช้ และอัปเดตตะกร้า
@@ -120,7 +120,7 @@ function Navbar() {
         const storedUser = localStorage.getItem("user");
         const parsed = storedUser ? JSON.parse(storedUser) : null;
         fetchCartCount(parsed?.AC_ID);
-      } catch (e) {}
+      } catch (e) { }
     };
     window.addEventListener("cart-updated", handleCartUpdated);
     return () => window.removeEventListener("cart-updated", handleCartUpdated);
@@ -188,33 +188,33 @@ function Navbar() {
 
   const matchedCategories = trimmed
     ? Array.from(
-        new Set(
-          allProducts
-            .filter((p) => p.TYPE && p.TYPE.toLowerCase().includes(trimmed))
-            .map((p) => p.TYPE)
-        )
+      new Set(
+        allProducts
+          .filter((p) => p.TYPE && p.TYPE.toLowerCase().includes(trimmed))
+          .map((p) => p.TYPE)
       )
+    )
     : [];
 
   const matchedStores = trimmed
     ? Array.from(
-        new Set(
-          allProducts
-            .filter(
-              (p) => p.ST_NAME && p.ST_NAME.toLowerCase().includes(trimmed)
-            )
-            .map((p) => p.ST_NAME)
-        )
+      new Set(
+        allProducts
+          .filter(
+            (p) => p.ST_NAME && p.ST_NAME.toLowerCase().includes(trimmed)
+          )
+          .map((p) => p.ST_NAME)
       )
+    )
     : [];
 
   const matchedProducts = trimmed
     ? allProducts.filter(
-        (p) =>
-          (p.PRODUCT_NAME && p.PRODUCT_NAME.toLowerCase().includes(trimmed)) ||
-          (p.TYPE && p.TYPE.toLowerCase().includes(trimmed)) ||
-          (p.ST_NAME && p.ST_NAME.toLowerCase().includes(trimmed))
-      )
+      (p) =>
+        (p.PRODUCT_NAME && p.PRODUCT_NAME.toLowerCase().includes(trimmed)) ||
+        (p.TYPE && p.TYPE.toLowerCase().includes(trimmed)) ||
+        (p.ST_NAME && p.ST_NAME.toLowerCase().includes(trimmed))
+    )
     : [];
 
   const suggestItemBg = isDark
@@ -231,8 +231,8 @@ function Navbar() {
         ? "#f8fafc"
         : "#0f172a"
       : isDark
-      ? "#cbd5e1"
-      : "#64748b",
+        ? "#cbd5e1"
+        : "#64748b",
     fontWeight: isActive ? "700" : "500",
     padding: "0.45rem 0.85rem",
     borderRadius: "9999px",
@@ -317,7 +317,7 @@ function Navbar() {
             }}
           >
             <span style={{ fontSize: "1.35rem" }}>🛍️</span>
-            <span>OnlinePlatform</span>
+            <span>MIXIAO STORE</span>
           </Link>
 
           {/* กล่อง Search Engine: ค้นหาได้จากทุกหน้า */}
@@ -348,8 +348,8 @@ function Navbar() {
                       ? "#60a5fa"
                       : "#2563eb"
                     : isDark
-                    ? "#94a3b8"
-                    : "#64748b",
+                      ? "#94a3b8"
+                      : "#64748b",
                   pointerEvents: "none",
                   transition: "color 0.2s ease",
                 }}
@@ -372,15 +372,15 @@ function Navbar() {
                       ? "1.5px solid #60a5fa"
                       : "1.5px solid #2563eb"
                     : isDark
-                    ? "1px solid rgba(148, 163, 184, 0.28)"
-                    : "1px solid rgba(15, 23, 42, 0.12)",
+                      ? "1px solid rgba(148, 163, 184, 0.28)"
+                      : "1px solid rgba(15, 23, 42, 0.12)",
                   backgroundColor: isFocused
                     ? isDark
                       ? "rgba(15, 23, 42, 0.85)"
                       : "rgba(255, 255, 255, 0.85)"
                     : isDark
-                    ? "rgba(15, 23, 42, 0.55)"
-                    : "rgba(255, 255, 255, 0.55)",
+                      ? "rgba(15, 23, 42, 0.55)"
+                      : "rgba(255, 255, 255, 0.55)",
                   backdropFilter: "blur(8px)",
                   fontSize: "0.86rem",
                   outline: "none",
@@ -710,14 +710,14 @@ function Navbar() {
                           transition: "all 0.15s ease",
                         }}
                         onMouseEnter={(e) =>
-                          (e.currentTarget.style.backgroundColor = isDark
-                            ? "rgba(59, 130, 246, 0.35)"
-                            : "rgba(37, 99, 235, 0.24)")
+                        (e.currentTarget.style.backgroundColor = isDark
+                          ? "rgba(59, 130, 246, 0.35)"
+                          : "rgba(37, 99, 235, 0.24)")
                         }
                         onMouseLeave={(e) =>
-                          (e.currentTarget.style.backgroundColor = isDark
-                            ? "rgba(59, 130, 246, 0.22)"
-                            : "rgba(37, 99, 235, 0.14)")
+                        (e.currentTarget.style.backgroundColor = isDark
+                          ? "rgba(59, 130, 246, 0.22)"
+                          : "rgba(37, 99, 235, 0.14)")
                         }
                       >
                         🔍 ดูผลลัพธ์ทั้งหมดสำหรับ "{searchText}" (

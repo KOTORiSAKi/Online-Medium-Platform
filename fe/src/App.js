@@ -3,6 +3,7 @@ import { BrowserRouter, Routes, Route } from "react-router-dom";
 
 // คอมโพเนนต์ส่วนกลาง
 import Navbar from "./components/Navbar";
+import AmbientBackground from "./components/AmbientBackground";
 import { PopupProvider } from "./context/PopupContext";
 import { ThemeProvider } from "./context/ThemeContext";
 
@@ -30,13 +31,22 @@ function App() {
             className="App"
             style={{
               minHeight: "100vh",
+              position: "relative",
               backgroundColor: "var(--bg-main)",
               color: "var(--text-primary)",
             }}
           >
+            <AmbientBackground />
             <Navbar />
             {/* เพิ่ม paddingTop: '6rem' เพื่อดันเนื้อหาเว็บลงมาไม่ให้ไปซ่อนอยู่หลัง Navbar ที่ลอยอยู่ */}
-            <main style={{ paddingTop: "6rem", paddingBottom: "3rem" }}>
+            <main
+              style={{
+                position: "relative",
+                zIndex: 1,
+                paddingTop: "6rem",
+                paddingBottom: "3rem",
+              }}
+            >
               <Routes>
                 <Route path="/" element={<Home />} />
                 <Route path="/product/:id" element={<Product />} />

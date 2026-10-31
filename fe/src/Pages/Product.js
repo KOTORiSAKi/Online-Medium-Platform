@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { useParams, Link, useNavigate } from "react-router-dom";
 import { usePopup } from "../context/PopupContext";
+import LiquidGlassCard from "../LiquidGlassCard";
 
 function Product() {
   const { showAlert } = usePopup();
@@ -86,14 +87,13 @@ function Product() {
           style={{ width: "120px", height: "20px", marginBottom: "1.5rem" }}
         />
         <div
+          className="glass-panel"
           style={{
             display: "grid",
             gridTemplateColumns: "repeat(auto-fit, minmax(320px, 1fr))",
             gap: "2.25rem",
-            backgroundColor: "#ffffff",
             padding: "2rem",
-            borderRadius: "20px",
-            border: "1px solid #e2e8f0",
+            borderRadius: "24px",
           }}
         >
           <div
@@ -179,27 +179,31 @@ function Product() {
         ← ย้อนกลับ
       </button>
 
-      <div
+      <LiquidGlassCard
+        borderRadius={24}
+        blurAmount={14}
+        bevelRatio={0.14}
+        className="liquid-glass-surface"
         style={{
-          display: "grid",
-          gridTemplateColumns: "repeat(auto-fit, minmax(320px, 1fr))",
-          gap: "2.25rem",
-          backgroundColor: "#ffffff",
-          padding: "2rem",
-          borderRadius: "20px",
-          border: "1px solid #e2e8f0",
-          boxShadow: "0 4px 20px rgba(15, 23, 42, 0.05)",
+          display: "block",
+          width: "100%",
         }}
       >
         <div
-          className="product-card-img-wrap"
           style={{
-            borderRadius: "16px",
-            border: "1px solid #f1f5f9",
-            backgroundColor: "#f8fafc",
-            alignSelf: "start",
+            display: "grid",
+            gridTemplateColumns: "repeat(auto-fit, minmax(320px, 1fr))",
+            gap: "2.25rem",
+            padding: "2.15rem",
           }}
         >
+          <div
+            className="product-card-img-wrap glass-subtle"
+            style={{
+              borderRadius: "18px",
+              alignSelf: "start",
+            }}
+          >
           <img
             className="product-card-img"
             src={
@@ -314,6 +318,7 @@ function Product() {
           </div>
 
           <div
+            className="glass-subtle"
             style={{
               display: "flex",
               alignItems: "center",
@@ -321,9 +326,7 @@ function Product() {
               gap: "0.6rem",
               marginTop: "0.75rem",
               padding: "0.65rem 0.9rem",
-              backgroundColor: "#f8fafc",
               borderRadius: "10px",
-              border: "1px solid #e2e8f0",
               flexWrap: "wrap",
             }}
           >
@@ -466,15 +469,14 @@ function Product() {
               {product.DESCRIPTION || "ไม่มีคำอธิบาย"}
             </p>
             <div
+              className="glass-subtle"
               style={{
                 display: "flex",
                 gap: "1rem",
                 flexWrap: "wrap",
                 fontSize: "0.84rem",
-                backgroundColor: "#f8fafc",
                 padding: "0.6rem 0.85rem",
                 borderRadius: "8px",
-                border: "1px solid #f1f5f9",
               }}
             >
               <span>
@@ -642,7 +644,8 @@ function Product() {
             )}
           </div>
         </div>
-      </div>
+        </div>
+      </LiquidGlassCard>
     </div>
   );
 }

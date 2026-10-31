@@ -403,40 +403,45 @@ function Market() {
       <h1 style={{ marginTop: 0, color: "#0f172a" }}>🛒 ตะกร้าสินค้าและการสั่งซื้อ</h1>
 
       {Object.keys(groupedCart).length === 0 ? (
-        <div
-          style={{
-            textAlign: "center",
-            padding: "4rem 2rem",
-            color: "#64748b",
-            backgroundColor: "#ffffff",
-            borderRadius: "16px",
-            border: "1px dashed #cbd5e1",
-          }}
+        <LiquidGlassCard
+          borderRadius={20}
+          blurAmount={14}
+          bevelRatio={0.18}
+          className="liquid-glass-surface"
+          style={{ display: "block", width: "100%" }}
         >
-          <div style={{ fontSize: "3.2rem", marginBottom: "0.75rem" }}>🛒</div>
-          <h3 style={{ margin: "0 0 0.5rem 0", color: "#334155" }}>
-            ไม่มีสินค้าในตะกร้าของคุณ
-          </h3>
-          <p style={{ margin: "0 0 1.25rem 0", fontSize: "0.95rem" }}>
-            เลือกชมสินค้าที่น่าสนใจจากหลากหลายร้านค้าได้เลย
-          </p>
-          <button
-            className="btn-interactive"
-            onClick={() => navigate("/")}
+          <div
             style={{
-              padding: "0.65rem 1.5rem",
-              cursor: "pointer",
-              backgroundColor: "#2563eb",
-              color: "#ffffff",
-              border: "none",
-              borderRadius: "999px",
-              fontWeight: "bold",
-              fontSize: "0.95rem",
+              textAlign: "center",
+              padding: "4rem 2rem",
+              color: "#64748b",
             }}
           >
-            🛍️ เริ่มช้อปเลย!
-          </button>
-        </div>
+            <div style={{ fontSize: "3.2rem", marginBottom: "0.75rem" }}>🛒</div>
+            <h3 style={{ margin: "0 0 0.5rem 0", color: "#334155" }}>
+              ไม่มีสินค้าในตะกร้าของคุณ
+            </h3>
+            <p style={{ margin: "0 0 1.25rem 0", fontSize: "0.95rem" }}>
+              เลือกชมสินค้าที่น่าสนใจจากหลากหลายร้านค้าได้เลย
+            </p>
+            <button
+              className="btn-interactive"
+              onClick={() => navigate("/")}
+              style={{
+                padding: "0.65rem 1.5rem",
+                cursor: "pointer",
+                backgroundColor: "#2563eb",
+                color: "#ffffff",
+                border: "none",
+                borderRadius: "999px",
+                fontWeight: "bold",
+                fontSize: "0.95rem",
+              }}
+            >
+              🛍️ เริ่มช้อปเลย!
+            </button>
+          </div>
+        </LiquidGlassCard>
       ) : (
         <div
           style={{
@@ -449,16 +454,14 @@ function Market() {
           <div>
             {/* บาร์เลือกสินค้าทั้งหมด */}
             <div
+              className="glass-panel"
               style={{
-                backgroundColor: "#ffffff",
-                border: "1px solid #e2e8f0",
                 borderRadius: "12px",
                 padding: "0.85rem 1.15rem",
                 marginBottom: "1rem",
                 display: "flex",
                 justifyContent: "space-between",
                 alignItems: "center",
-                boxShadow: "var(--shadow-sm)",
               }}
             >
               <label
@@ -531,27 +534,33 @@ function Market() {
               return (
                 <div
                   key={orderId}
-                  className="stagger-item"
+                  className={isClosed ? "stagger-item" : "glass-panel stagger-item"}
                   style={{
                     "--stagger-index": idx,
-                    border: isClosed
-                      ? "2px solid #ef4444"
-                      : "1px solid #e2e8f0",
+                    ...(isClosed
+                      ? {
+                          border: "2px solid #ef4444",
+                          backgroundColor: "rgba(254, 242, 242, 0.72)",
+                          backdropFilter: "blur(14px)",
+                          WebkitBackdropFilter: "blur(14px)",
+                          boxShadow: "var(--shadow-sm)",
+                        }
+                      : {}),
                     marginBottom: "1.5rem",
                     borderRadius: "14px",
                     overflow: "hidden",
-                    backgroundColor: isClosed ? "#fef2f2" : "#ffffff",
-                    boxShadow: "var(--shadow-sm)",
                   }}
                 >
                   {/* Header ร้านค้า พร้อม Checkbox เลือกทั้งร้าน */}
                   <div
                     style={{
-                      background: isClosed ? "#fee2e2" : "#f8fafc",
+                      background: isClosed
+                        ? "rgba(254, 226, 226, 0.72)"
+                        : "rgba(248, 250, 252, 0.45)",
                       padding: "0.85rem 1.15rem",
                       borderBottom: isClosed
                         ? "1px solid #fca5a5"
-                        : "1px solid #e2e8f0",
+                        : "1px solid rgba(148, 163, 184, 0.22)",
                       display: "flex",
                       justifyContent: "space-between",
                       alignItems: "center",
@@ -638,8 +647,8 @@ function Market() {
                       <div
                         style={{
                           padding: "0.75rem 1.15rem",
-                          borderBottom: "1px solid #e2e8f0",
-                          backgroundColor: "#f8fafc",
+                          borderBottom: "1px solid rgba(148, 163, 184, 0.2)",
+                          backgroundColor: "rgba(248, 250, 252, 0.36)",
                           display: "flex",
                           flexWrap: "wrap",
                           gap: "1rem",
@@ -676,7 +685,6 @@ function Market() {
                               borderRadius: "6px",
                               border: "1px solid #cbd5e1",
                               fontSize: "0.85rem",
-                              backgroundColor: "#ffffff",
                             }}
                           >
                             {shippingServices[orderId]?.map((service) => (
@@ -721,7 +729,6 @@ function Market() {
                               borderRadius: "6px",
                               border: "1px solid #cbd5e1",
                               fontSize: "0.85rem",
-                              backgroundColor: "#ffffff",
                             }}
                           >
                             {shippingConfigTypes.map((type) => (
@@ -753,12 +760,12 @@ function Market() {
                           padding: "1rem 1.15rem",
                           display: "flex",
                           gap: "1rem",
-                          borderBottom: "1px solid #f1f5f9",
+                          borderBottom: "1px solid rgba(148, 163, 184, 0.16)",
                           alignItems: "center",
                           backgroundColor: isOutOfStock
-                            ? "#fafafa"
+                            ? "rgba(148, 163, 184, 0.12)"
                             : isChecked && !isClosed
-                              ? "#f0f9ff"
+                              ? "rgba(59, 130, 246, 0.08)"
                               : "transparent",
                           opacity: isOutOfStock ? 0.75 : 1,
                           transition: "background-color 0.2s ease",
@@ -919,12 +926,11 @@ function Market() {
                             }}
                           >
                             <div
+                              className="glass-subtle"
                               style={{
                                 display: "flex",
                                 alignItems: "center",
-                                border: "1.5px solid #cbd5e0",
                                 borderRadius: "8px",
-                                backgroundColor: "#fff",
                                 overflow: "hidden",
                               }}
                             >
@@ -938,10 +944,11 @@ function Market() {
                                 }
                                 style={{
                                   padding: "0.25rem 0.65rem",
-                                  background: "#f8fafc",
+                                  background: "rgba(148, 163, 184, 0.14)",
                                   border: "none",
                                   cursor: "pointer",
                                   fontWeight: "bold",
+                                  color: "inherit",
                                 }}
                               >
                                 −
@@ -970,8 +977,8 @@ function Market() {
                                   padding: "0.25rem 0.65rem",
                                   background:
                                     isOutOfStock || item.QUANTITY >= item.STOCK
-                                      ? "#e2e8f0"
-                                      : "#f8fafc",
+                                      ? "rgba(148, 163, 184, 0.28)"
+                                      : "rgba(148, 163, 184, 0.14)",
                                   border: "none",
                                   cursor:
                                     isOutOfStock || item.QUANTITY >= item.STOCK
@@ -1024,7 +1031,9 @@ function Market() {
                       display: "flex",
                       justifyContent: "space-between",
                       alignItems: "center",
-                      background: isClosed ? "#fef2f2" : "#fcfcfc",
+                      background: isClosed
+                        ? "rgba(254, 242, 242, 0.65)"
+                        : "rgba(248, 250, 252, 0.4)",
                       fontSize: "0.85rem",
                     }}
                   >
@@ -1077,216 +1086,218 @@ function Market() {
           {/* Sticky Order Summary */}
           <div
             style={{
-              padding: "1.5rem",
-              border: "1px solid #e2e8f0",
-              borderRadius: "16px",
-              backgroundColor: "#ffffff",
-              boxShadow: "var(--shadow-md)",
               height: "fit-content",
               position: "sticky",
               top: "6.5rem",
             }}
           >
-            <h3
-              style={{
-                margin: "0 0 1rem 0",
-                fontSize: "1.2rem",
-                borderBottom: "1px solid #f1f5f9",
-                paddingBottom: "0.75rem",
-                color: "#0f172a",
-              }}
+            <LiquidGlassCard
+              borderRadius={20}
+              blurAmount={14}
+              bevelRatio={0.15}
+              className="liquid-glass-surface"
+              style={{ display: "block", width: "100%" }}
             >
-              🧾 สรุปยอดคำสั่งซื้อ
-            </h3>
-
-            <div
-              style={{
-                display: "flex",
-                justifyContent: "space-between",
-                marginBottom: "0.75rem",
-                color: "#64748b",
-                fontSize: "0.95rem",
-              }}
-            >
-              <span>สินค้าที่เลือก:</span>
-              <strong style={{ color: "#1e293b" }}>{selectedCount} ชิ้น</strong>
-            </div>
-
-            <div
-              style={{
-                display: "flex",
-                justifyContent: "space-between",
-                marginBottom: "0.75rem",
-                color: "#64748b",
-                fontSize: "0.95rem",
-              }}
-            >
-              <span>ยอดรวมสินค้า:</span>
-              <strong style={{ color: "#1e293b" }}>
-                ฿{selectedGrandTotal.toLocaleString()}
-              </strong>
-            </div>
-
-            <div
-              style={{
-                display: "flex",
-                justifyContent: "space-between",
-                marginBottom: "0.75rem",
-                color: "#64748b",
-                fontSize: "0.95rem",
-              }}
-            >
-              <span>ค่าจัดส่งรวม:</span>
-              <strong style={{ color: "#2563eb" }}>
-                ฿{(shippingCosts.totalShipping || 0).toLocaleString()}
-              </strong>
-            </div>
-
-            <div
-              style={{
-                display: "flex",
-                justifyContent: "space-between",
-                fontSize: "1.25rem",
-                marginBottom: "1.5rem",
-                borderTop: "1px dashed #cbd5e1",
-                paddingTop: "0.75rem",
-              }}
-            >
-              <span>ยอดสุทธิรวม:</span>
-              <strong style={{ color: "#059669" }}>
-                ฿
-                {(
-                  selectedGrandTotal + (shippingCosts.totalShipping || 0)
-                ).toLocaleString()}
-              </strong>
-            </div>
-
-            <div
-              style={{
-                marginBottom: "1rem",
-                backgroundColor: "#f8fafc",
-                padding: "1rem",
-                borderRadius: "12px",
-                border: "1px solid #e2e8f0",
-              }}
-            >
-              <div style={{ marginBottom: "1rem" }}>
-                <label
+              <div style={{ padding: "1.5rem" }}>
+                <h3
                   style={{
-                    display: "block",
-                    fontSize: "0.85rem",
-                    fontWeight: "bold",
-                    marginBottom: "0.4rem",
-                    color: "#334155",
+                    margin: "0 0 1rem 0",
+                    fontSize: "1.2rem",
+                    borderBottom: "1px solid rgba(148, 163, 184, 0.25)",
+                    paddingBottom: "0.75rem",
+                    color: "#0f172a",
                   }}
                 >
-                  📍 เลือกที่อยู่จัดส่ง:
-                </label>
-                <select
-                  className="form-input"
-                  value={destAddressId}
-                  onChange={(e) => setDestAddressId(e.target.value)}
+                  🧾 สรุปยอดคำสั่งซื้อ
+                </h3>
+
+                <div
+                  style={{
+                    display: "flex",
+                    justifyContent: "space-between",
+                    marginBottom: "0.75rem",
+                    color: "#64748b",
+                    fontSize: "0.95rem",
+                  }}
+                >
+                  <span>สินค้าที่เลือก:</span>
+                  <strong style={{ color: "#1e293b" }}>{selectedCount} ชิ้น</strong>
+                </div>
+
+                <div
+                  style={{
+                    display: "flex",
+                    justifyContent: "space-between",
+                    marginBottom: "0.75rem",
+                    color: "#64748b",
+                    fontSize: "0.95rem",
+                  }}
+                >
+                  <span>ยอดรวมสินค้า:</span>
+                  <strong style={{ color: "#1e293b" }}>
+                    ฿{selectedGrandTotal.toLocaleString()}
+                  </strong>
+                </div>
+
+                <div
+                  style={{
+                    display: "flex",
+                    justifyContent: "space-between",
+                    marginBottom: "0.75rem",
+                    color: "#64748b",
+                    fontSize: "0.95rem",
+                  }}
+                >
+                  <span>ค่าจัดส่งรวม:</span>
+                  <strong style={{ color: "#2563eb" }}>
+                    ฿{(shippingCosts.totalShipping || 0).toLocaleString()}
+                  </strong>
+                </div>
+
+                <div
+                  style={{
+                    display: "flex",
+                    justifyContent: "space-between",
+                    fontSize: "1.25rem",
+                    marginBottom: "1.5rem",
+                    borderTop: "1px dashed rgba(148, 163, 184, 0.45)",
+                    paddingTop: "0.75rem",
+                  }}
+                >
+                  <span>ยอดสุทธิรวม:</span>
+                  <strong style={{ color: "#059669" }}>
+                    ฿
+                    {(
+                      selectedGrandTotal + (shippingCosts.totalShipping || 0)
+                    ).toLocaleString()}
+                  </strong>
+                </div>
+
+                <div
+                  className="glass-subtle"
+                  style={{
+                    marginBottom: "1rem",
+                    padding: "1rem",
+                    borderRadius: "12px",
+                  }}
+                >
+                  <div style={{ marginBottom: "1rem" }}>
+                    <label
+                      style={{
+                        display: "block",
+                        fontSize: "0.85rem",
+                        fontWeight: "bold",
+                        marginBottom: "0.4rem",
+                        color: "#334155",
+                      }}
+                    >
+                      📍 เลือกที่อยู่จัดส่ง:
+                    </label>
+                    <select
+                      className="form-input"
+                      value={destAddressId}
+                      onChange={(e) => setDestAddressId(e.target.value)}
+                      style={{
+                        width: "100%",
+                        padding: "0.6rem",
+                        borderRadius: "8px",
+                        border: "1px solid #cbd5e1",
+                        fontSize: "0.9rem",
+                      }}
+                    >
+                      <option value="" disabled>
+                        -- กรุณาเลือกที่อยู่ --
+                      </option>
+                      {addresses.map((a) => (
+                        <option key={a.ADDRESS_ID} value={a.ADDRESS_ID}>
+                          {a.ADDRESS_LINE} {a.SUB_DISTRICT} {a.DISTRICT}{" "}
+                          {a.PROVINCE} {a.ZIP_CODE}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div>
+                    <label
+                      style={{
+                        display: "block",
+                        fontSize: "0.85rem",
+                        fontWeight: "bold",
+                        marginBottom: "0.4rem",
+                        color: "#334155",
+                      }}
+                    >
+                      💳 วิธีการชำระเงิน:
+                    </label>
+                    <select
+                      className="form-input"
+                      value={paymentMethod}
+                      onChange={(e) => setPaymentMethod(e.target.value)}
+                      style={{
+                        width: "100%",
+                        padding: "0.6rem",
+                        borderRadius: "8px",
+                        border: "1px solid #cbd5e1",
+                        fontSize: "0.9rem",
+                      }}
+                    >
+                      <option value="Cash">เงินสด (Cash)</option>
+                      <option value="Credit Card">บัตรเครดิต (Credit Card)</option>
+                      <option value="Bank Transfer">โอนเงิน (Bank Transfer)</option>
+                    </select>
+                  </div>
+                </div>
+
+                {hasClosedStoreInCart && (
+                  <div
+                    style={{
+                      backgroundColor: "#fef2f2",
+                      border: "1px solid #fca5a5",
+                      borderRadius: "8px",
+                      padding: "0.75rem",
+                      fontSize: "0.8rem",
+                      color: "#991b1b",
+                      marginBottom: "1rem",
+                      lineHeight: "1.4",
+                    }}
+                  >
+                    ℹ️ มีสินค้าจากร้านที่ปิดให้บริการอยู่ในตะกร้า
+                    สินค้าเหล่านั้นจะไม่สามารถเลือกสั่งซื้อได้ชั่วคราว
+                    (คุณยังคงสั่งซื้อสินค้าจากร้านอื่นที่เปิดได้ตามปกติ)
+                  </div>
+                )}
+
+                <button
+                  className="btn-interactive"
+                  onClick={handleCheckout}
+                  disabled={selectedCount === 0}
                   style={{
                     width: "100%",
-                    padding: "0.6rem",
-                    borderRadius: "8px",
-                    border: "1px solid #cbd5e1",
-                    fontSize: "0.9rem",
-                    backgroundColor: "#fff",
-                  }}
-                >
-                  <option value="" disabled>
-                    -- กรุณาเลือกที่อยู่ --
-                  </option>
-                  {addresses.map((a) => (
-                    <option key={a.ADDRESS_ID} value={a.ADDRESS_ID}>
-                      {a.ADDRESS_LINE} {a.SUB_DISTRICT} {a.DISTRICT}{" "}
-                      {a.PROVINCE} {a.ZIP_CODE}
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              <div>
-                <label
-                  style={{
-                    display: "block",
-                    fontSize: "0.85rem",
+                    padding: "0.9rem",
+                    backgroundColor: selectedCount === 0 ? "#cbd5e1" : "#059669",
+                    color: "white",
+                    border: "none",
+                    borderRadius: "10px",
+                    cursor: selectedCount === 0 ? "not-allowed" : "pointer",
+                    fontSize: "1rem",
                     fontWeight: "bold",
-                    marginBottom: "0.4rem",
-                    color: "#334155",
+                    boxShadow:
+                      selectedCount > 0
+                        ? "0 4px 12px rgba(5, 150, 105, 0.25)"
+                        : "none",
                   }}
                 >
-                  💳 วิธีการชำระเงิน:
-                </label>
-                <select
-                  className="form-input"
-                  value={paymentMethod}
-                  onChange={(e) => setPaymentMethod(e.target.value)}
-                  style={{
-                    width: "100%",
-                    padding: "0.6rem",
-                    borderRadius: "8px",
-                    border: "1px solid #cbd5e1",
-                    fontSize: "0.9rem",
-                    backgroundColor: "#fff",
-                  }}
-                >
-                  <option value="Cash">เงินสด (Cash)</option>
-                  <option value="Credit Card">บัตรเครดิต (Credit Card)</option>
-                  <option value="Bank Transfer">โอนเงิน (Bank Transfer)</option>
-                </select>
+                  {selectedCount === 0
+                    ? "กรุณาเลือกสินค้าที่ต้องการสั่งซื้อ"
+                    : `💳 สั่งซื้อสินค้าที่เลือก (${selectedCount} ชิ้น)`}
+                </button>
               </div>
-            </div>
-
-            {hasClosedStoreInCart && (
-              <div
-                style={{
-                  backgroundColor: "#fef2f2",
-                  border: "1px solid #fca5a5",
-                  borderRadius: "8px",
-                  padding: "0.75rem",
-                  fontSize: "0.8rem",
-                  color: "#991b1b",
-                  marginBottom: "1rem",
-                  lineHeight: "1.4",
-                }}
-              >
-                ℹ️ มีสินค้าจากร้านที่ปิดให้บริการอยู่ในตะกร้า
-                สินค้าเหล่านั้นจะไม่สามารถเลือกสั่งซื้อได้ชั่วคราว
-                (คุณยังคงสั่งซื้อสินค้าจากร้านอื่นที่เปิดได้ตามปกติ)
-              </div>
-            )}
-
-            <button
-              className="btn-interactive"
-              onClick={handleCheckout}
-              disabled={selectedCount === 0}
-              style={{
-                width: "100%",
-                padding: "0.9rem",
-                backgroundColor: selectedCount === 0 ? "#cbd5e1" : "#059669",
-                color: "white",
-                border: "none",
-                borderRadius: "10px",
-                cursor: selectedCount === 0 ? "not-allowed" : "pointer",
-                fontSize: "1rem",
-                fontWeight: "bold",
-                boxShadow:
-                  selectedCount > 0
-                    ? "0 4px 12px rgba(5, 150, 105, 0.25)"
-                    : "none",
-              }}
-            >
-              {selectedCount === 0
-                ? "กรุณาเลือกสินค้าที่ต้องการสั่งซื้อ"
-                : `💳 สั่งซื้อสินค้าที่เลือก (${selectedCount} ชิ้น)`}
-            </button>
+            </LiquidGlassCard>
           </div>
         </div>
       )}
 
-      <hr style={{ margin: "3rem 0", borderColor: "#e2e8f0" }} />
+      <hr style={{ margin: "3rem 0", borderColor: "rgba(148, 163, 184, 0.25)" }} />
       <h2 style={{ color: "#0f172a" }}>📦 สถานะการจัดส่ง</h2>
 
       {activeOrders.filter(
@@ -1296,7 +1307,7 @@ function Market() {
       ) : (
         activeOrders
           .filter((o) => o.STATUS === "Pending" || o.STATUS === "Delivered")
-          .map((order) => {
+          .map((order, orderIdx) => {
             const isDelivered = order.STATUS === "Delivered";
             const orderDate = order.ORDER_DATE
               ? new Date(order.ORDER_DATE).getTime()
@@ -1322,13 +1333,16 @@ function Market() {
             return (
               <div
                 key={order.ORDER_ID}
+                className={isDelivered ? "glass-panel" : "glass-sheer"}
                 style={{
-                  backgroundColor: isDelivered ? "#fffbeb" : "#fff",
-                  border: `1px solid ${isDelivered ? "#f59e0b" : "#e2e8f0"}`,
+                  ...(isDelivered
+                    ? {
+                        border: "1px solid rgba(245, 158, 11, 0.65)",
+                      }
+                    : {}),
                   borderRadius: "14px",
                   padding: "1.5rem",
                   marginBottom: "1.25rem",
-                  boxShadow: "var(--shadow-sm)",
                 }}
               >
                 <div
@@ -1379,7 +1393,7 @@ function Market() {
                   </div>
                 </div>
 
-                {/* LiquidGlass Progress Bar */}
+                {/* LiquidGlass Progress Bar (Capped at 4 WebGL contexts to stay well within browser limits) */}
                 {!isDelivered && (
                   <div style={{ marginBottom: "1.5rem" }}>
                     <div
@@ -1400,18 +1414,45 @@ function Market() {
                           : "กำลังจัดเตรียม..."}
                       </span>
                     </div>
-                    <LiquidGlassCard
-                      progress={progress / 100}
-                      fillAxis="x"
-                      liquidColor="#3b82f6"
-                      borderRadius={10}
-                      bevelRatio={0.22}
-                      style={{
-                        height: "24px",
-                        width: "100%",
-                        backgroundColor: "rgba(226, 232, 240, 0.55)",
-                      }}
-                    />
+                    {orderIdx < 4 ? (
+                      <LiquidGlassCard
+                        progress={progress / 100}
+                        fillAxis="x"
+                        liquidColor="#3b82f6"
+                        borderRadius={10}
+                        bevelRatio={0.22}
+                        style={{
+                          height: "24px",
+                          width: "100%",
+                          backgroundColor: "rgba(148, 163, 184, 0.25)",
+                        }}
+                      />
+                    ) : (
+                      <div
+                        style={{
+                          height: "24px",
+                          width: "100%",
+                          borderRadius: "10px",
+                          backgroundColor: "rgba(148, 163, 184, 0.22)",
+                          border: "1px solid rgba(255, 255, 255, 0.45)",
+                          overflow: "hidden",
+                          position: "relative",
+                        }}
+                      >
+                        <div
+                          style={{
+                            height: "100%",
+                            width: `${progress}%`,
+                            borderRadius: "10px",
+                            background:
+                              "linear-gradient(90deg, #2563eb 0%, #3b82f6 55%, #60a5fa 100%)",
+                            boxShadow:
+                              "inset 0 2px 4px rgba(255, 255, 255, 0.45)",
+                            transition: "width 0.35s ease",
+                          }}
+                        />
+                      </div>
+                    )}
                   </div>
                 )}
 
@@ -1504,7 +1545,6 @@ function Market() {
               className="modal-content"
               onClick={(e) => e.stopPropagation()}
               style={{
-                backgroundColor: "white",
                 padding: "2rem",
                 borderRadius: "18px",
                 width: "90%",
@@ -1537,7 +1577,7 @@ function Market() {
                       style={{
                         fontSize: "2.4rem",
                         cursor: "pointer",
-                        color: activeStar ? "#f59e0b" : "#e2e8f0",
+                        color: activeStar ? "#f59e0b" : "#cbd5e1",
                         transform: activeStar ? "scale(1.12)" : "scale(1)",
                         transition: "transform 0.15s ease, color 0.15s ease",
                         userSelect: "none",
@@ -1560,16 +1600,15 @@ function Market() {
               </div>
               <div style={{ display: "flex", gap: "0.75rem" }}>
                 <button
-                  className="btn-interactive"
+                  className="btn-interactive glass-subtle"
                   onClick={() => setReviewModalOpen(false)}
                   style={{
                     flex: 1,
                     padding: "0.75rem",
-                    border: "1px solid #cbd5e1",
-                    backgroundColor: "white",
                     borderRadius: "10px",
                     cursor: "pointer",
                     fontWeight: "600",
+                    color: "#334155",
                   }}
                 >
                   ยกเลิก

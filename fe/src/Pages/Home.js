@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback, useMemo } from "react";
 import { Link, useSearchParams } from "react-router-dom";
+import LiquidGlassCard from "../LiquidGlassCard";
 
 function Home() {
   const [products, setProducts] = useState([]);
@@ -166,10 +167,9 @@ function Home() {
           {Array.from({ length: 8 }).map((_, idx) => (
             <div
               key={idx}
+              className="glass-panel"
               style={{
-                backgroundColor: "#ffffff",
                 borderRadius: "14px",
-                border: "1px solid #e2e8f0",
                 overflow: "hidden",
                 paddingBottom: "1rem",
               }}
@@ -210,205 +210,226 @@ function Home() {
     >
       {/* แถบแจ้งเตือนเมื่อมีการค้นหา */}
       {searchQuery.trim() && (
+        <LiquidGlassCard
+          borderRadius={16}
+          blurAmount={14}
+          bevelRatio={0.28}
+          className="liquid-glass-surface"
+          style={{
+            display: "block",
+            width: "100%",
+            marginBottom: "1.25rem",
+          }}
+        >
+          <div
+            style={{
+              display: "flex",
+              justifyContent: "space-between",
+              alignItems: "center",
+              padding: "0.9rem 1.3rem",
+              flexWrap: "wrap",
+              gap: "0.75rem",
+            }}
+          >
+            <div>
+              <span style={{ color: "#64748b", fontSize: "0.9rem" }}>
+                ผลการค้นหาสำหรับ:{" "}
+              </span>
+              <strong style={{ color: "#2563eb", fontSize: "1rem" }}>
+                "{searchQuery}"
+              </strong>
+              <span
+                style={{
+                  color: "#64748b",
+                  fontSize: "0.85rem",
+                  marginLeft: "0.6rem",
+                }}
+              >
+                (พบ {displayedProducts.length} รายการ จากทั้งหมด{" "}
+                {products.length} ชิ้น • หน้า {safeCurrentPage}/{totalPages})
+              </span>
+            </div>
+            <button
+              onClick={() => setSearchParams({})}
+              className="btn-interactive glass-subtle"
+              style={{
+                padding: "0.42rem 0.95rem",
+                borderRadius: "8px",
+                cursor: "pointer",
+                fontSize: "0.85rem",
+                fontWeight: "bold",
+                color: "#475569",
+              }}
+            >
+              ✕ ล้างการค้นหา
+            </button>
+          </div>
+        </LiquidGlassCard>
+      )}
+
+      {/* แถบควบคุมการจัดเรียงและการแนะนำสินค้า (Personalization & Shuffle Bar) */}
+      <LiquidGlassCard
+        borderRadius={20}
+        blurAmount={14}
+        bevelRatio={0.24}
+        className="liquid-glass-surface"
+        style={{
+          display: "block",
+          width: "100%",
+          marginBottom: "1.25rem",
+        }}
+      >
         <div
           style={{
             display: "flex",
             justifyContent: "space-between",
             alignItems: "center",
-            marginBottom: "1.25rem",
-            backgroundColor: "#ffffff",
-            padding: "0.85rem 1.25rem",
-            borderRadius: "12px",
-            border: "1px solid #bfdbfe",
-            boxShadow: "0 2px 8px rgba(37, 99, 235, 0.06)",
+            flexWrap: "wrap",
+            gap: "1rem",
+            padding: "1.15rem 1.4rem",
           }}
         >
           <div>
-            <span style={{ color: "#64748b", fontSize: "0.9rem" }}>
-              ผลการค้นหาสำหรับ:{" "}
-            </span>
-            <strong style={{ color: "#2563eb", fontSize: "1rem" }}>
-              "{searchQuery}"
-            </strong>
-            <span
+            <div
+              style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}
+            >
+              <h2 style={{ margin: 0, fontSize: "1.25rem", color: "#0f172a" }}>
+                {sortBy === "personalized"
+                  ? user
+                    ? `✨ แนะนำสำหรับคุณ (${user.FNAME || user.USERNAME})`
+                    : "✨ สินค้าแนะนำยอดนิยม"
+                  : sortBy === "random"
+                    ? "🎲 สินค้าแบบสุ่มคัดสรร"
+                    : "🛍️ รายการสินค้าทั้งหมด"}
+              </h2>
+              {sortBy === "personalized" && user && (
+                <span
+                  style={{
+                    fontSize: "0.75rem",
+                    backgroundColor: "#eff6ff",
+                    color: "#2563eb",
+                    fontWeight: "bold",
+                    padding: "0.18rem 0.6rem",
+                    borderRadius: "9999px",
+                    border: "1px solid #bfdbfe",
+                  }}
+                >
+                  Personalized
+                </span>
+              )}
+            </div>
+            <p
               style={{
+                margin: "0.25rem 0 0 0",
                 color: "#64748b",
-                fontSize: "0.85rem",
-                marginLeft: "0.6rem",
+                fontSize: "0.82rem",
               }}
             >
-              (พบ {displayedProducts.length} รายการ จากทั้งหมด {products.length}{" "}
-              ชิ้น • หน้า {safeCurrentPage}/{totalPages})
-            </span>
-          </div>
-          <button
-            onClick={() => setSearchParams({})}
-            className="btn-interactive"
-            style={{
-              padding: "0.4rem 0.9rem",
-              backgroundColor: "#f1f5f9",
-              border: "1px solid #cbd5e1",
-              borderRadius: "8px",
-              cursor: "pointer",
-              fontSize: "0.85rem",
-              fontWeight: "bold",
-              color: "#475569",
-            }}
-          >
-            ✕ ล้างการค้นหา
-          </button>
-        </div>
-      )}
-
-      {/* แถบควบคุมการจัดเรียงและการแนะนำสินค้า (Personalization & Shuffle Bar) */}
-      <div
-        style={{
-          display: "flex",
-          justifyContent: "space-between",
-          alignItems: "center",
-          flexWrap: "wrap",
-          gap: "1rem",
-          marginBottom: "1.25rem",
-          backgroundColor: "#ffffff",
-          padding: "1.1rem 1.35rem",
-          borderRadius: "16px",
-          border: "1px solid #e2e8f0",
-          boxShadow: "0 2px 8px rgba(15, 23, 42, 0.04)",
-        }}
-      >
-        <div>
-          <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
-            <h2 style={{ margin: 0, fontSize: "1.25rem", color: "#0f172a" }}>
               {sortBy === "personalized"
                 ? user
-                  ? `✨ แนะนำสำหรับคุณ (${user.FNAME || user.USERNAME})`
-                  : "✨ สินค้าแนะนำยอดนิยม"
+                  ? "เรียงลำดับตามความชอบและประวัติการสั่งซื้อของคุณโดยเฉพาะ"
+                  : "เรียงตามร้านค้าที่เปิดและเรตติ้งยอดนิยม"
                 : sortBy === "random"
-                  ? "🎲 สินค้าแบบสุ่มคัดสรร"
-                  : "🛍️ รายการสินค้าทั้งหมด"}
-            </h2>
-            {sortBy === "personalized" && user && (
-              <span
-                style={{
-                  fontSize: "0.75rem",
-                  backgroundColor: "#eff6ff",
-                  color: "#2563eb",
-                  fontWeight: "bold",
-                  padding: "0.18rem 0.6rem",
-                  borderRadius: "9999px",
-                  border: "1px solid #bfdbfe",
-                }}
-              >
-                Personalized
-              </span>
-            )}
+                  ? "สุ่มการแสดงผลสินค้าเพื่อให้คุณค้นพบสินค้าใหม่ๆ"
+                  : "จัดเรียงสินค้าตามตัวเลือกที่คุณกำหนด"}
+            </p>
           </div>
-          <p
-            style={{
-              margin: "0.25rem 0 0 0",
-              color: "#64748b",
-              fontSize: "0.82rem",
-            }}
-          >
-            {sortBy === "personalized"
-              ? user
-                ? "เรียงลำดับตามความชอบและประวัติการสั่งซื้อของคุณโดยเฉพาะ"
-                : "เรียงตามร้านค้าที่เปิดและเรตติ้งยอดนิยม"
-              : sortBy === "random"
-                ? "สุ่มการแสดงผลสินค้าเพื่อให้คุณค้นพบสินค้าใหม่ๆ"
-                : "จัดเรียงสินค้าตามตัวเลือกที่คุณกำหนด"}
-          </p>
-        </div>
 
-        {/* ตัวเลือกการจัดเรียง */}
-        <div
-          style={{
-            display: "flex",
-            alignItems: "center",
-            gap: "0.5rem",
-            flexWrap: "wrap",
-          }}
-        >
-          <button
-            onClick={() => handleSortChange("personalized")}
-            className="btn-interactive"
+          {/* ตัวเลือกการจัดเรียง */}
+          <div
             style={{
               display: "flex",
               alignItems: "center",
-              gap: "0.35rem",
-              padding: "0.48rem 0.95rem",
-              borderRadius: "10px",
-              border:
-                sortBy === "personalized"
+              gap: "0.5rem",
+              flexWrap: "wrap",
+            }}
+          >
+            <button
+              onClick={() => handleSortChange("personalized")}
+              className={`btn-interactive ${
+                sortBy === "personalized" ? "" : "glass-subtle"
+              }`}
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: "0.35rem",
+                padding: "0.48rem 0.95rem",
+                borderRadius: "10px",
+                border:
+                  sortBy === "personalized"
+                    ? "1.5px solid #2563eb"
+                    : "1px solid rgba(226, 232, 240, 0.8)",
+                backgroundColor:
+                  sortBy === "personalized" ? "#eff6ff" : undefined,
+                color: sortBy === "personalized" ? "#1d4ed8" : "#475569",
+                fontWeight: sortBy === "personalized" ? "bold" : "500",
+                fontSize: "0.85rem",
+                cursor: "pointer",
+              }}
+            >
+              <span>✨</span> แนะนำสำหรับคุณ
+            </button>
+
+            <button
+              onClick={() => handleSortChange("random")}
+              className={`btn-interactive ${
+                sortBy === "random" ? "" : "glass-subtle"
+              }`}
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: "0.35rem",
+                padding: "0.48rem 0.95rem",
+                borderRadius: "10px",
+                border:
+                  sortBy === "random"
+                    ? "1.5px solid #7c3aed"
+                    : "1px solid rgba(226, 232, 240, 0.8)",
+                backgroundColor: sortBy === "random" ? "#f5f3ff" : undefined,
+                color: sortBy === "random" ? "#6d28d9" : "#475569",
+                fontWeight: sortBy === "random" ? "bold" : "500",
+                fontSize: "0.85rem",
+                cursor: "pointer",
+              }}
+              title="กดเพื่อสุ่มลำดับสินค้าใหม่ทันที"
+            >
+              <span>🎲</span> สุ่มสินค้าใหม่
+            </button>
+
+            <select
+              className="form-input"
+              value={
+                ["rating", "price-asc", "price-desc"].includes(sortBy)
+                  ? sortBy
+                  : ""
+              }
+              onChange={(e) => {
+                if (e.target.value) handleSortChange(e.target.value);
+              }}
+              style={{
+                width: "auto",
+                padding: "0.48rem 0.85rem",
+                borderRadius: "10px",
+                border: ["rating", "price-asc", "price-desc"].includes(sortBy)
                   ? "1.5px solid #2563eb"
-                  : "1px solid #e2e8f0",
-              backgroundColor:
-                sortBy === "personalized" ? "#eff6ff" : "#ffffff",
-              color: sortBy === "personalized" ? "#1d4ed8" : "#475569",
-              fontWeight: sortBy === "personalized" ? "bold" : "500",
-              fontSize: "0.85rem",
-              cursor: "pointer",
-            }}
-          >
-            <span>✨</span> แนะนำสำหรับคุณ
-          </button>
-
-          <button
-            onClick={() => handleSortChange("random")}
-            className="btn-interactive"
-            style={{
-              display: "flex",
-              alignItems: "center",
-              gap: "0.35rem",
-              padding: "0.48rem 0.95rem",
-              borderRadius: "10px",
-              border:
-                sortBy === "random"
-                  ? "1.5px solid #7c3aed"
-                  : "1px solid #e2e8f0",
-              backgroundColor: sortBy === "random" ? "#f5f3ff" : "#ffffff",
-              color: sortBy === "random" ? "#6d28d9" : "#475569",
-              fontWeight: sortBy === "random" ? "bold" : "500",
-              fontSize: "0.85rem",
-              cursor: "pointer",
-            }}
-            title="กดเพื่อสุ่มลำดับสินค้าใหม่ทันที"
-          >
-            <span>🎲</span> สุ่มสินค้าใหม่
-          </button>
-
-          <select
-            value={
-              ["rating", "price-asc", "price-desc"].includes(sortBy)
-                ? sortBy
-                : ""
-            }
-            onChange={(e) => {
-              if (e.target.value) handleSortChange(e.target.value);
-            }}
-            style={{
-              padding: "0.48rem 0.85rem",
-              borderRadius: "10px",
-              border: ["rating", "price-asc", "price-desc"].includes(sortBy)
-                ? "1.5px solid #2563eb"
-                : "1px solid #e2e8f0",
-              backgroundColor: "#ffffff",
-              color: "#334155",
-              fontSize: "0.85rem",
-              fontWeight: "500",
-              cursor: "pointer",
-              outline: "none",
-            }}
-          >
-            <option value="" disabled>
-              เรียงตามเกณฑ์อื่นๆ...
-            </option>
-            <option value="rating">⭐ เรตติ้งร้านค้าสูงสุด</option>
-            <option value="price-asc">💵 ราคา: ต่ำสุด → สูงสุด</option>
-            <option value="price-desc">💵 ราคา: สูงสุด → ต่ำสุด</option>
-          </select>
+                  : "1px solid rgba(148, 163, 184, 0.35)",
+                color: "#334155",
+                fontSize: "0.85rem",
+                fontWeight: "500",
+                cursor: "pointer",
+                outline: "none",
+              }}
+            >
+              <option value="" disabled>
+                เรียงตามเกณฑ์อื่นๆ...
+              </option>
+              <option value="rating">⭐ เรตติ้งร้านค้าสูงสุด</option>
+              <option value="price-asc">💵 ราคา: ต่ำสุด → สูงสุด</option>
+              <option value="price-desc">💵 ราคา: สูงสุด → ต่ำสุด</option>
+            </select>
+          </div>
         </div>
-      </div>
+      </LiquidGlassCard>
 
       {/* แถบกรองหมวดหมู่ด่วน (Category Pills) */}
       {categories.length > 0 && (
@@ -425,16 +446,18 @@ function Home() {
           <button
             type="button"
             onClick={() => setSelectedCategory("ALL")}
-            className="btn-interactive"
+            className={`btn-interactive ${
+              selectedCategory === "ALL" ? "" : "glass-panel"
+            }`}
             style={{
-              padding: "0.4rem 0.95rem",
+              padding: "0.42rem 1rem",
               borderRadius: "9999px",
               border:
                 selectedCategory === "ALL"
                   ? "1.5px solid #2563eb"
-                  : "1px solid #e2e8f0",
+                  : undefined,
               backgroundColor:
-                selectedCategory === "ALL" ? "#2563eb" : "#ffffff",
+                selectedCategory === "ALL" ? "#2563eb" : undefined,
               color: selectedCategory === "ALL" ? "#ffffff" : "#475569",
               fontSize: "0.82rem",
               fontWeight: selectedCategory === "ALL" ? "700" : "500",
@@ -442,8 +465,8 @@ function Home() {
               whiteSpace: "nowrap",
               boxShadow:
                 selectedCategory === "ALL"
-                  ? "0 2px 6px rgba(37, 99, 235, 0.25)"
-                  : "none",
+                  ? "0 4px 12px rgba(37, 99, 235, 0.3)"
+                  : undefined,
             }}
           >
             🏷️ ทั้งหมด ({products.length})
@@ -457,14 +480,14 @@ function Home() {
                 onClick={() =>
                   setSelectedCategory(isSelected ? "ALL" : cat)
                 }
-                className="btn-interactive"
+                className={`btn-interactive ${
+                  isSelected ? "glass-pill" : "glass-panel"
+                }`}
                 style={{
-                  padding: "0.4rem 0.95rem",
+                  padding: "0.42rem 1rem",
                   borderRadius: "9999px",
-                  border: isSelected
-                    ? "1.5px solid #2563eb"
-                    : "1px solid #e2e8f0",
-                  backgroundColor: isSelected ? "#eff6ff" : "#ffffff",
+                  border: isSelected ? "1.5px solid #2563eb" : undefined,
+                  backgroundColor: isSelected ? "#eff6ff" : undefined,
                   color: isSelected ? "#1d4ed8" : "#475569",
                   fontSize: "0.82rem",
                   fontWeight: isSelected ? "700" : "500",
@@ -482,12 +505,11 @@ function Home() {
       {/* รายการสินค้า */}
       {displayedProducts.length === 0 ? (
         <div
+          className="glass-panel"
           style={{
             padding: "3.5rem 1.5rem",
             textAlign: "center",
-            backgroundColor: "#ffffff",
-            borderRadius: "16px",
-            border: "1px dashed #cbd5e1",
+            borderRadius: "18px",
             marginTop: "1rem",
           }}
         >
@@ -546,14 +568,14 @@ function Home() {
                       ? "2px solid #ef4444"
                       : isOutOfStock
                         ? "1.5px solid #fca5a5"
-                        : "1px solid #e2e8f0",
-                    borderRadius: "14px",
+                        : "1px solid rgba(255, 255, 255, 0.8)",
+                    borderRadius: "16px",
                     overflow: "hidden",
                     backgroundColor: isClosed
-                      ? "#fef2f2"
+                      ? "rgba(254, 242, 242, 0.78)"
                       : isOutOfStock
-                        ? "#fffdfd"
-                        : "#fff",
+                        ? "rgba(255, 250, 250, 0.66)"
+                        : "rgba(255, 255, 255, 0.68)",
                     position: "relative",
                     display: "flex",
                     flexDirection: "column",
@@ -758,13 +780,11 @@ function Home() {
           {/* ส่วนควบคุมการแบ่งหน้า (Pagination Controls) */}
           {totalItems > 0 && (
             <div
+              className="glass-panel"
               style={{
                 marginTop: "2.5rem",
                 padding: "1rem 1.5rem",
-                backgroundColor: "#ffffff",
-                borderRadius: "14px",
-                border: "1px solid #e2e8f0",
-                boxShadow: "0 2px 6px rgba(0,0,0,0.03)",
+                borderRadius: "16px",
                 display: "flex",
                 justifyContent: "space-between",
                 alignItems: "center",
